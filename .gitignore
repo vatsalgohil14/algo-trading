@@ -1,0 +1,19 @@
+# Rust build output
+/target/
+**/*.rs.bk
+
+# Secrets — never commit
+.env
+.env.*
+*.pem
+secrets/
+config/**/*.secret.toml
+
+# Local data / QuestDB
+/data/
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
