@@ -2,11 +2,11 @@
 resolver = "3"
 # Crates are added here as they get real code; the empty scaffold folders are
 # intentionally not listed yet.
-members = ["crates/brokers/dhan"]
+members = ["crates/brokers/dhan", "crates/store"]
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.99"
 publish = false
 
 [workspace.dependencies]
@@ -15,6 +15,14 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 csv = "1"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 governor = "0.10"
+# QuestDB client: QWP over WebSocket for ingestion (sender) and queries (reader).
+questdb-rs = { version = "7.2.1", default-features = false, features = [
+  "sync-sender-qwp-ws",
+  "sync-reader-qwp-ws",
+  "rust_decimal",
+  "tls-webpki-certs",
+  "ring-crypto",
+] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
 rust_decimal = "1"
 serde = { version = "1", features = ["derive"] }

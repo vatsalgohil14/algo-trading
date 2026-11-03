@@ -1,0 +1,20 @@
+[package]
+name = "store"
+version = "0.1.0"
+description = "QuestDB storage over QWP: typed rows, non-blocking writer, bar queries"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+questdb-rs.workspace = true
+rust_decimal.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

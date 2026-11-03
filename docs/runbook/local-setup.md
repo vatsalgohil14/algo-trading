@@ -22,11 +22,23 @@ scripts/questdb.sh sql "SELECT count() FROM bars_1m"
 ```
 
 - Web console: <http://127.0.0.1:9000>
-- Postgres wire protocol: `127.0.0.1:8812`, user `admin`, password `quest`
-- Ingestion (InfluxDB Line Protocol): HTTP `127.0.0.1:9000/write` or TCP `127.0.0.1:9009`
+- **QWP (what our code uses)**: `ws://127.0.0.1:9000`, for both ingestion and
+  queries. See `crates/store/README.md`.
+- Legacy, kept for tools: Postgres wire `127.0.0.1:8812` (user `admin`,
+  password `quest`), ILP over HTTP `127.0.0.1:9000/write` or TCP `127.0.0.1:9009`.
 
 QuestDB listens on localhost only (`deploy/questdb/server.conf`), so the default
-password is not exposed to the network. Telemetry is off.
+password is not exposed to the network. Telemetry is off. Ingestion may not
+create tables or columns (`line.auto.create.new.tables/columns=false`; applies
+to QWP too): the schema is owned by `schema.sql`, and a misspelled name is
+rejected instead of silently creating junk.
+
+After changing `deploy/questdb/server.conf`, copy it into place and restart
+(the start script only installs it when none exists yet):
+
+```bash
+cp deploy/questdb/server.conf ~/.questdb/conf/server.conf && scripts/questdb.sh restart
+```
 
 QuestDB does not start automatically after a reboot; run `scripts/questdb.sh start`.
 
