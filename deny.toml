@@ -1,0 +1,40 @@
+# Dependency policy, checked with `cargo deny check`.
+
+[graph]
+all-features = true
+
+[advisories]
+# Fail on any crate with a known vulnerability or that is unmaintained/yanked.
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Permissive licenses only.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "CDLA-Permissive-2.0",
+  "MPL-2.0",
+]
+confidence-threshold = 0.9
+# Our own crates are not published (publish = false), so they need no license.
+private = { ignore = true }
+
+[bans]
+# Duplicate versions of the same crate are common in the ecosystem; report them
+# without failing the build.
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+# Only crates.io; no git or unknown registries.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
