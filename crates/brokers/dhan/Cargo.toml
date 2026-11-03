@@ -1,0 +1,37 @@
+[package]
+name = "dhan"
+version = "0.1.0"
+description = "Async Rust client for the DhanHQ v2 trading and data APIs"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = ["totp"]
+# Generate TOTP codes locally for the daily access-token flow.
+totp = ["dep:totp-rs"]
+
+[dependencies]
+arc-swap.workspace = true
+chrono.workspace = true
+csv.workspace = true
+futures-util.workspace = true
+governor.workspace = true
+reqwest.workspace = true
+rust_decimal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+totp-rs = { workspace = true, optional = true }
+tracing.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "signal"] }
+tracing-subscriber.workspace = true
+wiremock.workspace = true
+
+[lints]
+workspace = true
