@@ -1,0 +1,18 @@
+[package]
+name = "indicators"
+version = "0.1.0"
+description = "Incremental technical indicators, looked up by name and computed once per stock"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+trading-core.workspace = true
+
+[dev-dependencies]
+chrono.workspace = true
+sim.workspace = true
+
+[lints]
+workspace = true

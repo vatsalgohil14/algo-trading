@@ -66,6 +66,13 @@ impl Timestamp {
         MinuteOfDay(local_minutes.rem_euclid(MINUTES_PER_DAY) as u16)
     }
 
+    /// Days since 1970-01-01 in IST. Two instants are on the same IST date
+    /// exactly when this matches. Pure arithmetic, for per-bar session checks.
+    pub const fn ist_day(self) -> i64 {
+        let local_minutes = self.0.div_euclid(MICROS_PER_MINUTE) + (IST_OFFSET_SECS / 60) as i64;
+        local_minutes.div_euclid(MINUTES_PER_DAY)
+    }
+
     pub const fn plus_secs(self, secs: i64) -> Self {
         Self(self.0.saturating_add(secs.saturating_mul(MICROS_PER_SEC)))
     }
@@ -226,6 +233,12 @@ mod tests {
         assert_eq!(late.ist_minute_of_day(), MinuteOfDay::new(23, 59).unwrap());
         assert_eq!(late.ist_date(), Some(d(2026, 11, 6)));
         assert_eq!(late.plus_minutes(1).ist_date(), Some(d(2026, 11, 7)));
+        assert_eq!(late.ist_day(), open.ist_day());
+        assert_eq!(late.plus_minutes(1).ist_day(), open.ist_day() + 1);
+        let epoch_day = d(2026, 11, 6)
+            .signed_duration_since(d(1970, 1, 1))
+            .num_days();
+        assert_eq!(open.ist_day(), epoch_day);
         assert_eq!(
             format!("{open:?}"),
             "Timestamp(2026-11-06 09:15:00.000000 IST)"
