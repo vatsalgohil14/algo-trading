@@ -1,0 +1,14 @@
+[package]
+name = "sim"
+version = "0.1.0"
+description = "Simulation: synthetic market data (and later the simulated broker)"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+trading-core.workspace = true
+
+[lints]
+workspace = true

@@ -2,7 +2,7 @@
 resolver = "3"
 # Crates are added here as they get real code; the empty scaffold folders are
 # intentionally not listed yet.
-members = ["crates/brokers/dhan", "crates/store"]
+members = ["crates/brokers/dhan", "crates/core", "crates/sim", "crates/store", "apps/tools"]
 
 [workspace.package]
 edition = "2024"
@@ -11,6 +11,10 @@ publish = false
 
 [workspace.dependencies]
 arc-swap = "1"
+trading-core = { path = "crates/core" }
+store = { path = "crates/store" }
+sim = { path = "crates/sim" }
+clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
 csv = "1"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }

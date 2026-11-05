@@ -1,0 +1,18 @@
+[package]
+name = "trading-core"
+version = "0.1.0"
+description = "Shared types and interfaces: instruments, prices, bars, orders, fills, positions, clock, feed and execution traits"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "trading_core"
+
+[dependencies]
+chrono.workspace = true
+rust_decimal.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

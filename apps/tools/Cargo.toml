@@ -1,0 +1,21 @@
+[package]
+name = "tools"
+version = "0.1.0"
+description = "Command-line utilities: data loaders and generators"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "synth-bars"
+path = "src/bin/synth_bars.rs"
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+sim.workspace = true
+store.workspace = true
+trading-core.workspace = true
+
+[lints]
+workspace = true

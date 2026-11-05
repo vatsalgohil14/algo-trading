@@ -66,6 +66,22 @@ QuestDB does not start automatically after a reboot; run `scripts/questdb.sh sta
 | `pnl_daily` | daily P&L per strategy, net of costs | year | forever |
 | `system_events` | connects, halts, kill switch, errors | day | 180 days |
 
+## Synthetic test data
+
+Until real 1-minute history is available, the pipeline is exercised with
+synthetic bars (`crates/sim`): realistic shape (gaps, busy open and close,
+trend and range days), reproducible from a seed, but **no real edge**, so
+strategy results on it mean nothing.
+
+```bash
+cargo run --release -p tools --bin synth-bars -- --stocks 20 --from 2025-01-01 --to 2025-12-31
+cargo run --release -p tools --bin synth-bars -- --stocks 20 --from 2025-01-01 --to 2025-12-31 --dry-run
+```
+
+Rows go to `bars_1m` with segment `SYNTH`, source `synthetic` and security ids
+from 900,000,001, so they never mix with real data. To remove them:
+`scripts/questdb.sh sql "DELETE FROM bars_1m WHERE source = 'synthetic'"`.
+
 ## Reinstalling from scratch
 
 The install was done by hand (no Homebrew):
