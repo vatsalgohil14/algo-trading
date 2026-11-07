@@ -2,7 +2,7 @@
 resolver = "3"
 # Crates are added here as they get real code; the empty scaffold folders are
 # intentionally not listed yet.
-members = ["crates/brokers/dhan", "crates/core", "crates/indicators", "crates/sim", "crates/store", "crates/strategies", "apps/tools"]
+members = ["crates/brokers/dhan", "crates/core", "crates/costs", "crates/indicators", "crates/sim", "crates/store", "crates/strategies", "apps/tools"]
 
 [workspace.package]
 edition = "2024"
@@ -13,6 +13,7 @@ publish = false
 arc-swap = "1"
 trading-core = { path = "crates/core" }
 indicators = { path = "crates/indicators" }
+costs = { path = "crates/costs" }
 store = { path = "crates/store" }
 sim = { path = "crates/sim" }
 strategies = { path = "crates/strategies" }

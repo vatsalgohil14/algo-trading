@@ -1,0 +1,18 @@
+[package]
+name = "costs"
+version = "0.1.0"
+description = "Trading charges (brokerage, STT, exchange, SEBI, stamp duty, GST) and slippage for NSE intraday equity"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+trading-core.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
