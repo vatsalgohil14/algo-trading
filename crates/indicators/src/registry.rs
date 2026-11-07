@@ -34,7 +34,10 @@ impl Registry {
         r.register("ema", trend::Ema::from_spec);
         r.register("rsi", momentum::Rsi::from_spec);
         r.register("atr", volatility::Atr::from_spec);
+        r.register("atr_daily", volatility::DailyAtr::from_spec);
         r.register("vwap", volume::Vwap::from_spec);
+        r.register("vol_sma", volume::VolumeSma::from_spec);
+        r.register("turnover", volume::DailyTurnover::from_spec);
         r.register("orb", levels::OpeningRange::from_spec);
         r.register("prev_day", levels::PrevDay::from_spec);
         r

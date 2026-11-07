@@ -155,6 +155,56 @@ fn ref_prev_day(h: &[Bar]) -> Option<(f64, f64, f64)> {
     ))
 }
 
+/// High, low, close and turnover of each completed day before today.
+fn ref_days(h: &[Bar]) -> Vec<(f64, f64, f64, f64)> {
+    let day = h.last().unwrap().ts.ist_day();
+    let mut out: Vec<(i64, (f64, f64, f64, f64))> = Vec::new();
+    for b in h.iter().filter(|b| b.ts.ist_day() < day) {
+        let (hi, lo, c) = (b.high.as_f64(), b.low.as_f64(), b.close.as_f64());
+        let value = b.typical_price() * b.volume as f64;
+        match out.last_mut() {
+            Some((d, t)) if *d == b.ts.ist_day() => {
+                *t = (t.0.max(hi), t.1.min(lo), c, t.3 + value);
+            }
+            _ => out.push((b.ts.ist_day(), (hi, lo, c, value))),
+        }
+    }
+    out.into_iter().map(|(_, t)| t).collect()
+}
+
+fn ref_atr_daily(h: &[Bar], n: usize) -> Option<f64> {
+    let days = ref_days(h);
+    let tr: Vec<f64> = days
+        .windows(2)
+        .map(|w| {
+            let (hi, lo, pc) = (w[1].0, w[1].1, w[0].2);
+            (hi - lo).max((hi - pc).abs()).max((lo - pc).abs())
+        })
+        .collect();
+    if tr.len() < n {
+        return None;
+    }
+    let mut v = tr[..n].iter().sum::<f64>() / n as f64;
+    for x in &tr[n..] {
+        v = (v * (n as f64 - 1.0) + x) / n as f64;
+    }
+    Some(v)
+}
+
+fn ref_turnover(h: &[Bar], n: usize) -> Option<f64> {
+    let days = ref_days(h);
+    (days.len() >= n).then(|| days[days.len() - n..].iter().map(|d| d.3).sum::<f64>() / n as f64)
+}
+
+fn ref_vol_sma(h: &[Bar], n: usize, skip_last: bool) -> Option<f64> {
+    let end = if skip_last {
+        h.len().checked_sub(1)?
+    } else {
+        h.len()
+    };
+    (end >= n).then(|| h[end - n..end].iter().map(|b| b.volume as f64).sum::<f64>() / n as f64)
+}
+
 #[test]
 fn every_indicator_matches_its_reference_on_every_bar() {
     let mut b = BankBuilder::new(Registry::builtin());
@@ -169,6 +219,10 @@ fn every_indicator_matches_its_reference_on_every_bar() {
     let pd_h = b.require("prev_day.high").unwrap();
     let pd_l = b.require("prev_day.low").unwrap();
     let pd_c = b.require("prev_day.close").unwrap();
+    let atr_d = b.require("atr_daily(3)").unwrap();
+    let turnover = b.require("turnover(2)").unwrap();
+    let vol = b.require("vol_sma(20)").unwrap();
+    let vol_prev = b.require("vol_sma(20).prev").unwrap();
     let mut bank = b.build(STOCKS as usize).unwrap();
 
     let bars = synthetic_bars();
@@ -193,6 +247,10 @@ fn every_indicator_matches_its_reference_on_every_bar() {
         close_enough(get(pd_h), pd.map(|p| p.0), "prev high", i);
         close_enough(get(pd_l), pd.map(|p| p.1), "prev low", i);
         close_enough(get(pd_c), pd.map(|p| p.2), "prev close", i);
+        close_enough(get(atr_d), ref_atr_daily(h, 3), "atr_daily", i);
+        close_enough(get(turnover), ref_turnover(h, 2), "turnover", i);
+        close_enough(get(vol), ref_vol_sma(h, 20, false), "vol_sma", i);
+        close_enough(get(vol_prev), ref_vol_sma(h, 20, true), "vol_sma prev", i);
     }
     assert_eq!(bars.len(), 10 * 375 * STOCKS as usize);
 }
@@ -247,6 +305,40 @@ fn hand_worked_examples() {
     assert_eq!(run("rsi(2)", &[5, 5, 5]), [None, None, Some(50.0)]);
     // ATR(2) of flat bars is the close-to-close jump: (0 + 1) / 2, then (0.5 + 3) / 2.
     assert_eq!(run("atr(2)", &[10, 11, 14]), [None, Some(0.5), Some(1.75)]);
+}
+
+#[test]
+fn daily_indicators_ignore_today() {
+    // Day 1: 10..12, close 11. Day 2: 9..15, close 14 -> TR = 6.
+    // Day 3: 14..14 after a gap from 14 -> TR = 0. ATR(2) = (6 + 0) / 2.
+    let (mut bank, atr) = bank_with("atr_daily(2)");
+    let id = InstrumentId(0);
+    let day = 24 * 60;
+    for (m, c) in [(0, 1000), (1, 1200), (2, 1100)] {
+        bank.update(&flat_bar(m, c, 1)).unwrap();
+    }
+    for (m, c) in [(day, 900), (day + 1, 1500), (day + 2, 1400)] {
+        bank.update(&flat_bar(m, c, 1)).unwrap();
+    }
+    bank.update(&flat_bar(2 * day, 1400, 1)).unwrap();
+    assert_eq!(bank.get(id, atr), None); // only one day's true range so far
+    bank.update(&flat_bar(3 * day, 99_900, 1)).unwrap();
+    assert_eq!(bank.get(id, atr), Some(3.0));
+    // A huge move today changes nothing until the day is over.
+    bank.update(&flat_bar(3 * day + 1, 1, 1)).unwrap();
+    assert_eq!(bank.get(id, atr), Some(3.0));
+}
+
+#[test]
+fn volume_average_before_the_current_bar() {
+    let (mut bank, prev) = bank_with("vol_sma(2).prev");
+    let id = InstrumentId(0);
+    let mut got = Vec::new();
+    for (m, v) in [10, 20, 30, 1000].into_iter().enumerate() {
+        bank.update(&flat_bar(m as i64, 100, v)).unwrap();
+        got.push(bank.get(id, prev));
+    }
+    assert_eq!(got, [None, None, Some(15.0), Some(25.0)]);
 }
 
 #[test]

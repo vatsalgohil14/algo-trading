@@ -2254,6 +2254,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "strategies"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "indicators",
+ "serde",
+ "serde_json",
+ "sim",
+ "thiserror 2.0.21",
+ "trading-core",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

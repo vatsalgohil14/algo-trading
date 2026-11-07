@@ -2,7 +2,7 @@
 resolver = "3"
 # Crates are added here as they get real code; the empty scaffold folders are
 # intentionally not listed yet.
-members = ["crates/brokers/dhan", "crates/core", "crates/indicators", "crates/sim", "crates/store", "apps/tools"]
+members = ["crates/brokers/dhan", "crates/core", "crates/indicators", "crates/sim", "crates/store", "crates/strategies", "apps/tools"]
 
 [workspace.package]
 edition = "2024"
@@ -15,6 +15,7 @@ trading-core = { path = "crates/core" }
 indicators = { path = "crates/indicators" }
 store = { path = "crates/store" }
 sim = { path = "crates/sim" }
+strategies = { path = "crates/strategies" }
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
 csv = "1"

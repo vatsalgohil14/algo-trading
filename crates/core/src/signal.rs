@@ -7,8 +7,13 @@ use crate::{CoreError, InstrumentId, Price, StrategyId, Timestamp};
 pub enum Intent {
     EnterLong,
     EnterShort,
-    /// Close this strategy's position in the instrument.
+    /// Close this strategy's position in the instrument and cancel its
+    /// working orders there (including an entry that has not filled).
     Exit,
+    /// Move the protective stop of the open position to `stop`, e.g. to
+    /// breakeven. Only ever tightens risk; the risk manager rejects a move
+    /// that widens it.
+    AdjustStop,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +45,12 @@ impl Signal {
         };
         let long = match self.intent {
             Intent::Exit => return Ok(()),
+            Intent::AdjustStop => {
+                return match self.stop {
+                    Some(stop) if stop.is_positive() => Ok(()),
+                    _ => fail("a stop adjustment needs a positive stop"),
+                };
+            }
             Intent::EnterLong => true,
             Intent::EnterShort => false,
         };
@@ -115,6 +126,19 @@ mod tests {
             ..long(0, None)
         };
         exit.validate(Price::ZERO).unwrap();
+        let adjust = Signal {
+            intent: Intent::AdjustStop,
+            ..long(10_000, None)
+        };
+        adjust.validate(Price::ZERO).unwrap();
+        assert!(
+            Signal {
+                stop: None,
+                ..adjust
+            }
+            .validate(Price::ZERO)
+            .is_err()
+        );
     }
 
     #[test]
