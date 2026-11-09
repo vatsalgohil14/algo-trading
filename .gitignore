@@ -17,3 +17,6 @@ config/**/*.secret.toml
 .DS_Store
 .idea/
 .vscode/
+
+# Local MCP servers (holds this machine's paths)
+.mcp.json
