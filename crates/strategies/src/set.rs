@@ -116,6 +116,14 @@ impl StrategySet {
         out.len() - before
     }
 
+    /// Each strategy's name and filter counts, for reports.
+    pub fn filter_counts(&self) -> Vec<(&'static str, Vec<(&'static str, u64)>)> {
+        self.entries
+            .iter()
+            .map(|e| (e.strategy.name(), e.strategy.filter_counts()))
+            .collect()
+    }
+
     /// Ends the minute closing at `close`, for every strategy. Call it
     /// exactly once per minute, after that minute's bars.
     pub fn on_minute_end(&mut self, close: Timestamp, out: &mut Vec<Signal>) {

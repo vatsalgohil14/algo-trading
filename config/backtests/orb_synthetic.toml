@@ -1,0 +1,13 @@
+# Checks the machinery on random data. The P&L here means nothing.
+[data]
+source = "synthetic"
+from = "2025-01-01"
+to = "2025-12-31"
+stocks = 40
+
+[[strategy]]
+name = "orb"
+
+[strategy.params]
+# Synthetic stocks are less liquid than the real universe.
+min_turnover_cr = 5.0

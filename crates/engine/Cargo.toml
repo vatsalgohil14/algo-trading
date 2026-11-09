@@ -1,0 +1,23 @@
+[package]
+name = "engine"
+version = "0.1.0"
+description = "Connects indicators, strategies, risk and orders; the same in backtest, paper and live"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+costs.workspace = true
+indicators.workspace = true
+oms.workspace = true
+risk.workspace = true
+serde_json.workspace = true
+strategies.workspace = true
+thiserror.workspace = true
+trading-core.workspace = true
+
+[dev-dependencies]
+chrono.workspace = true
+
+[lints]
+workspace = true

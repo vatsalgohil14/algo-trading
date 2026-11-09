@@ -2,7 +2,7 @@
 resolver = "3"
 # Crates are added here as they get real code; the empty scaffold folders are
 # intentionally not listed yet.
-members = ["crates/brokers/dhan", "crates/core", "crates/costs", "crates/indicators", "crates/risk", "crates/sim", "crates/store", "crates/strategies", "apps/tools"]
+members = ["crates/brokers/dhan", "crates/backtest", "crates/core", "crates/costs", "crates/engine", "crates/indicators", "crates/oms", "crates/risk", "crates/sim", "crates/store", "crates/strategies", "apps/backtester", "apps/tools"]
 
 [workspace.package]
 edition = "2024"
@@ -11,16 +11,20 @@ publish = false
 
 [workspace.dependencies]
 arc-swap = "1"
+backtest = { path = "crates/backtest" }
 trading-core = { path = "crates/core" }
 indicators = { path = "crates/indicators" }
 costs = { path = "crates/costs" }
 store = { path = "crates/store" }
+engine = { path = "crates/engine" }
+oms = { path = "crates/oms" }
 risk = { path = "crates/risk" }
 sim = { path = "crates/sim" }
 strategies = { path = "crates/strategies" }
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
 csv = "1"
+toml = "0.8"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 governor = "0.10"
 # QuestDB client: QWP over WebSocket for ingestion (sender) and queries (reader).

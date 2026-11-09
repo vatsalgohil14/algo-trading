@@ -29,9 +29,12 @@
 
 mod error;
 pub mod orb;
+mod registry;
 mod set;
+pub mod template;
 
 pub use error::StrategyError;
+pub use registry::build;
 pub use set::StrategySet;
 
 use std::fmt::Debug;
@@ -100,6 +103,12 @@ pub trait Strategy: Send + Debug {
     /// such as choosing among several breakouts when only some can be taken.
     fn on_minute_end(&mut self, close: Timestamp, out: &mut Vec<Signal>) {
         let _ = (close, out);
+    }
+
+    /// How often each of the strategy's filters stopped a trade, by name,
+    /// for reports.
+    fn filter_counts(&self) -> Vec<(&'static str, u64)> {
+        Vec::new()
     }
 }
 

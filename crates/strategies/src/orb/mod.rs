@@ -31,8 +31,8 @@
 //! State comes from the position reported on each bar, not from what the
 //! strategy asked for, so a rejected or unfilled entry, a stop hit at the
 //! broker, or a position that should not be there are all handled the same
-//! way. State is held in memory: after a mid-day restart any open position
-//! is closed as stale, and the stock is not traded again that day.
+//! way. State is held in memory: after a mid-day restart no new ORB trades
+//! are taken that day, because the opening of the day is no longer known.
 
 mod config;
 
@@ -781,6 +781,10 @@ impl Strategy for Orb {
         if let Some(slot) = self.stocks.get_mut(i) {
             *slot = stock;
         }
+    }
+
+    fn filter_counts(&self) -> Vec<(&'static str, u64)> {
+        self.rejections().collect()
     }
 
     fn on_minute_end(&mut self, close: Timestamp, out: &mut Vec<Signal>) {

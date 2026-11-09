@@ -9,12 +9,12 @@ publish.workspace = true
 [dependencies]
 indicators.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 trading-core.workspace = true
 
 [dev-dependencies]
 chrono.workspace = true
-serde_json.workspace = true
 sim.workspace = true
 
 [lints]

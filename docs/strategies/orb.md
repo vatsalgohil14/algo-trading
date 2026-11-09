@@ -84,8 +84,8 @@ See `crates/risk`.
 
 - **State comes from the position, not from orders.** On every bar, the strategy is told its position, which mirrors the broker. A rejected entry, a stop hit at the broker and an unexpected position are all handled the same way.
 - **Known gaps, to be closed in the engine:**
-  - State is in memory. After a mid-day restart, an open position is closed as stale, the stock isn't traded again that day, and the daily counters start from zero.
-  - Exits run only when a bar arrives, so square-off must also be driven by the clock.
+  - State is in memory. After a mid-day restart, ORB takes no new trades that day. Open positions keep their broker stops, no strategy manages them, and they're closed at square-off.
+  - ORB's own exits run only when a bar arrives. The engine's square-off runs from the clock.
 - **One shard per instance.** Ranking and the strategy limits need all of an instance's stocks on the same engine shard.
 - **No lookahead.**
   - A signal is decided at a bar's close and acted on from the next bar.

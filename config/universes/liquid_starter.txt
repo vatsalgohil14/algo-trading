@@ -1,0 +1,33 @@
+# Large, liquid NSE stocks to start with. Chosen for trading volume today,
+# so backtests on this list carry survivorship bias: replace it with a
+# point-in-time universe before trusting long-range results.
+RELIANCE
+HDFCBANK
+ICICIBANK
+INFY
+TCS
+SBIN
+AXISBANK
+KOTAKBANK
+LT
+ITC
+BHARTIARTL
+HINDUNILVR
+BAJFINANCE
+MARUTI
+M&M
+TATASTEEL
+JSWSTEEL
+HINDALCO
+ONGC
+NTPC
+POWERGRID
+SUNPHARMA
+DRREDDY
+CIPLA
+TITAN
+ADANIENT
+ADANIPORTS
+WIPRO
+HCLTECH
+TECHM

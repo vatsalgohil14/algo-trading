@@ -6,6 +6,9 @@ pub enum StrategyError {
     #[error("invalid config for {strategy}: {why}")]
     Config { strategy: &'static str, why: String },
 
+    #[error("no strategy is called {0:?}")]
+    UnknownStrategy(String),
+
     #[error(transparent)]
     Indicator(#[from] IndicatorError),
 

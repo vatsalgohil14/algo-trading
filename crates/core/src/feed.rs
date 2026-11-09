@@ -19,7 +19,7 @@ pub enum FeedError {
 /// * Events for one instrument arrive in time order.
 /// * Every bar passed on has passed [`Bar::validate`](crate::Bar::validate).
 /// * Connection problems are reported in-band as
-///   [`MarketEvent::Status`](crate::MarketEvent::Status), not by ending the
+///   [`MarketEvent::Status`], not by ending the
 ///   stream; a live feed reconnects by itself.
 /// * `next_event` returns `None` only when the feed is finished for good (end
 ///   of a replay, or shutdown).

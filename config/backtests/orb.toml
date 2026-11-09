@@ -1,0 +1,10 @@
+# ORB on real 1-minute bars, loaded with `dhan-history`.
+# Anything left out takes its default; see docs/strategies/how-to-add.md.
+[data]
+source = "questdb"
+from = "2022-01-01"
+to = "2026-10-31"
+universe_file = "data/universe.csv"
+
+[[strategy]]
+name = "orb"

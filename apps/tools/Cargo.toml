@@ -10,9 +10,17 @@ publish.workspace = true
 name = "synth-bars"
 path = "src/bin/synth_bars.rs"
 
+[[bin]]
+name = "dhan-history"
+path = "src/bin/dhan_history.rs"
+
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
+dhan = { path = "../../crates/brokers/dhan" }
+reqwest.workspace = true
+rust_decimal.workspace = true
+tokio.workspace = true
 sim.workspace = true
 store.workspace = true
 trading-core.workspace = true
