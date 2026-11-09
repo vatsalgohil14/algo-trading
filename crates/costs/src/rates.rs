@@ -7,7 +7,7 @@ use trading_core::{Money, Price, Side};
 use crate::CostError;
 
 /// A rate as parts per billion of an amount, so charges are computed in
-/// exact integer arithmetic (0.00297% is exactly 29,700 ppb).
+/// exact integer arithmetic (0.0030699% is exactly 30,699 ppb).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct Rate(i64);
 
@@ -32,10 +32,10 @@ fn to_rupee(paise: i64) -> i64 {
 }
 
 /// Charge rates, in percent of turnover unless stated. The defaults are
-/// the published rates for NSE equity intraday with Dhan (and Zerodha,
-/// which charges the same) as of 2025. Rates change with budgets and
-/// exchange circulars: check the broker's current charges page before
-/// trading real money.
+/// the NSE equity intraday rates shown on dhan.co/pricing when read in
+/// November 2026. Rates change with budgets and exchange circulars: check
+/// that page again before trading real money. Dhan's IPFT charge
+/// (0.0000001%) is left out; it is under a paisa per order at our sizes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ChargeRates {
@@ -53,9 +53,8 @@ pub struct ChargeRates {
     pub stamp_buy_pct: f64,
     /// GST, as a percentage of brokerage + exchange charges + SEBI fee.
     pub gst_pct: f64,
-    /// Round STT and stamp duty to whole rupees per order, as contract
-    /// notes do (they round per stock and day, so per order is slightly
-    /// more conservative).
+    /// Round STT and stamp duty to the nearest rupee, as Dhan's pricing
+    /// page says it does. Rounding per order is our assumption.
     pub round_stt_stamp_to_rupee: bool,
 }
 
@@ -65,7 +64,7 @@ impl Default for ChargeRates {
             brokerage_pct: 0.03,
             brokerage_max: 20.0,
             stt_sell_pct: 0.025,
-            exchange_pct: 0.00297,
+            exchange_pct: 0.0030699,
             sebi_per_crore: 10.0,
             stamp_buy_pct: 0.003,
             gst_pct: 18.0,
@@ -198,7 +197,7 @@ mod tests {
 
     #[test]
     fn rates_are_exact() {
-        assert_eq!(Rate::from_pct(0.00297).0, 29_700);
+        assert_eq!(Rate::from_pct(0.0030699).0, 30_699);
         assert_eq!(Rate::from_pct(18.0).0, 180_000_000);
         // 0.025% of ₹50,500 = ₹12.625, rounded half up to ₹12.63.
         assert_eq!(Rate::from_pct(0.025).of(5_050_000), 1_263);

@@ -6,8 +6,9 @@
 //!
 //! * **Charges** ([`ChargeRates`]): brokerage (percentage, capped per order),
 //!   STT on sells, exchange transaction charges, SEBI fee, stamp duty on
-//!   buys and GST. Computed per executed order in exact integer paise,
-//!   matching broker contract notes to the rupee.
+//!   buys and GST. Computed per executed order in exact integer paise.
+//!   The rates are from Dhan's pricing page; the results have not yet been
+//!   compared with a real contract note.
 //! * **Slippage** ([`Slippage`]): fills assumed a little worse than the
 //!   reference price, at least one tick.
 //!
@@ -17,7 +18,7 @@
 //!
 //! let model = CostModel::default();
 //! let buy = model.charges(Side::Buy, Price::from_paise(50_000), 100);
-//! assert_eq!(buy.total().to_string(), "21.52");
+//! assert_eq!(buy.total().to_string(), "21.56");
 //! ```
 
 #![cfg_attr(
@@ -139,11 +140,10 @@ mod tests {
         Price::from_paise(paise)
     }
 
-    /// 100 shares bought at ₹500 and sold at ₹505. The brokerage is below
-    /// the ₹20 cap on both sides. Matches the published brokerage
-    /// calculators (₹54.23 in all).
+    /// 100 shares bought at ₹500 and sold at ₹505, worked by hand from the
+    /// default rates. The brokerage is below the ₹20 cap on both sides.
     #[test]
-    fn small_trade_matches_a_contract_note() {
+    fn small_trade_worked_by_hand() {
         let m = CostModel::default();
         let buy = m.charges(Side::Buy, p(50_000), 100);
         assert_eq!(
@@ -151,10 +151,10 @@ mod tests {
             Charges {
                 brokerage: rupees("15.00"), // 0.03% of 50,000
                 stt: Money::ZERO,
-                exchange: rupees("1.49"), // 1.485
+                exchange: rupees("1.53"), // 1.53495
                 sebi: rupees("0.05"),
                 stamp: rupees("2.00"), // 1.50, rounded to the rupee
-                gst: rupees("2.98"),   // 18% of 16.54
+                gst: rupees("2.98"),   // 18% of 16.58
             }
         );
         let sell = m.charges(Side::Sell, p(50_500), 100);
@@ -162,17 +162,17 @@ mod tests {
             sell,
             Charges {
                 brokerage: rupees("15.15"),
-                stt: rupees("13.00"), // 12.625, rounded to the rupee
-                exchange: rupees("1.50"),
+                stt: rupees("13.00"),     // 12.625, rounded to the rupee
+                exchange: rupees("1.55"), // 1.55030
                 sebi: rupees("0.05"),
                 stamp: Money::ZERO,
-                gst: rupees("3.01"), // 18% of 16.70
+                gst: rupees("3.02"), // 18% of 16.75
             }
         );
         let t = m.round_trip(Side::Buy, 100, p(50_000), p(50_500));
         assert_eq!(t.gross, rupees("500"));
-        assert_eq!(t.charges.total(), rupees("54.23"));
-        assert_eq!(t.net, rupees("445.77"));
+        assert_eq!(t.charges.total(), rupees("54.33"));
+        assert_eq!(t.net, rupees("445.67"));
     }
 
     /// 1,000 shares at ₹2,000 → ₹2,010: brokerage hits the ₹20 cap.
@@ -184,11 +184,11 @@ mod tests {
         assert_eq!(c.brokerage, rupees("40"));
         assert_eq!(c.stt, rupees("503")); // 502.50 on ₹20.1L
         assert_eq!(c.stamp, rupees("60"));
-        assert_eq!(c.exchange, rupees("119.10")); // 59.40 + 59.70
+        assert_eq!(c.exchange, rupees("123.10")); // 61.40 + 61.70
         assert_eq!(c.sebi, rupees("4.01"));
-        assert_eq!(c.gst, rupees("29.36")); // 14.65 + 14.71
-        assert_eq!(c.total(), rupees("755.47"));
-        assert_eq!(t.net, rupees("9244.53"));
+        assert_eq!(c.gst, rupees("30.08")); // 15.01 + 15.07
+        assert_eq!(c.total(), rupees("760.19"));
+        assert_eq!(t.net, rupees("9239.81"));
     }
 
     #[test]
@@ -201,19 +201,19 @@ mod tests {
         assert_eq!(short, long);
         let loser = m.round_trip(Side::Sell, 100, p(50_000), p(50_500));
         assert_eq!(loser.gross, rupees("-500"));
-        assert_eq!(loser.net, rupees("-554.23"));
+        assert_eq!(loser.net, rupees("-554.33"));
     }
 
     #[test]
     fn expected_cost_includes_slippage() {
         let m = CostModel::default();
-        // Charges for buy + sell at ₹500 (21.52 + 32.52 = 54.04) plus 10
+        // Charges for buy + sell at ₹500 (21.56 + 32.56 = 54.12) plus 10
         // paise of slippage on each side for 100 shares (₹20).
         let sell = m.charges(Side::Sell, p(50_000), 100).total();
-        assert_eq!(sell, rupees("32.52"));
+        assert_eq!(sell, rupees("32.56"));
         assert_eq!(
             m.expected_round_trip_cost(p(50_000), 100, p(5)),
-            rupees("74.04")
+            rupees("74.12")
         );
     }
 

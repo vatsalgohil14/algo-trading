@@ -1959,6 +1959,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "risk"
+version = "0.1.0"
+dependencies = [
+ "costs",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "trading-core",
+]
+
+[[package]]
 name = "rust_decimal"
 version = "1.43.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

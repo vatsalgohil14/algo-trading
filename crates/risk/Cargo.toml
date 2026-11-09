@@ -1,0 +1,19 @@
+[package]
+name = "risk"
+version = "0.1.0"
+description = "Decides whether a signal becomes a trade and how big: sizing, cost check, exposure caps, daily loss halt"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+costs.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+trading-core.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

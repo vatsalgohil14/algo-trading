@@ -68,13 +68,17 @@ Every condition must hold on a completed 1-minute bar:
 
 ## 6. Sizing and account limits (risk manager, not the strategy)
 
+See `crates/risk`.
+
 | Rule | Value |
 |---|---|
-| Risk per trade | 0.5% of capital (₹2,500 on ₹5L): qty = ₹2,500 ÷ (entry − stop) |
-| Max exposure per trade | ₹1.5L |
-| Daily loss limit | 2% of capital stops all trading |
-| Gross exposure cap | about 3–3.5× capital |
-| Exact cost check | Expected reward ≥ 4× round-trip charges |
+| Exposure per trade | ₹30k + score × ₹20k, in whole lots. Score is 0 until a setup is proven out-of-sample |
+| Maximum loss per trade | ₹500 at the stop; the size shrinks to fit, and the trade is skipped if that takes it below ₹30k |
+| Cost check | Expected reward ≥ 4× round-trip cost (charges and slippage) |
+| Positions per stock | One, across all strategies |
+| Total exposure | ₹15L |
+| Net long or short exposure | ₹7.5L |
+| Daily loss limit | ₹10k (2% of capital) stops new trades and closes everything |
 
 ## Design notes
 
