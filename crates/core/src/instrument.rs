@@ -34,8 +34,8 @@ pub struct Instrument {
     pub exchange: Exchange,
     /// Exchange trading symbol, e.g. `RELIANCE`.
     pub symbol: Arc<str>,
-    /// The exchange's numeric token. Dhan uses it as `security_id`; Kite
-    /// reports it as `exchange_token`. This is what we persist.
+    /// The exchange's numeric token, Dhan's `security_id`. This is what we
+    /// persist.
     pub exchange_token: u32,
     pub tick_size: Price,
     /// Shares per order unit; 1 for cash equities.

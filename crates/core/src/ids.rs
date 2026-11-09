@@ -50,12 +50,12 @@ impl OrderSeq {
     }
 }
 
-/// Our own id for an order, sent to the broker as the correlation id (Dhan)
-/// or tag (Kite). It is how we find an order again when a request times out
-/// and we do not know whether it was placed, so it must be unique for the
-/// trading day, including across restarts.
+/// Our own id for an order, sent to the broker as the correlation id. It is
+/// how we find an order again when a request times out and we do not know
+/// whether it was placed, so it must be unique for the trading day,
+/// including across restarts.
 ///
-/// Limited to what both brokers accept: 1-20 ASCII letters and digits.
+/// Limited to what Dhan accepts: 1-20 ASCII letters and digits.
 /// Stored inline, so it is `Copy`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ClientOrderId {

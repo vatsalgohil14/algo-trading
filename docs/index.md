@@ -30,7 +30,7 @@
 | Item | Detail |
 |---|---|
 | **Market** | NSE cash equity, intraday only |
-| **Broker** | Dhan (Kite later) |
+| **Broker** | Dhan |
 | **Capital** | ₹5 lakh, at up to 5× intraday leverage |
 | **Trade size** | ₹30,000 to ₹50,000 of exposure |
 | **Risk limits** | ₹500 per trade, ₹10,000 per day |
