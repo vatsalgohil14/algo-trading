@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only MCP server for the local QuestDB, so Claude can query it.
+"""MCP server for the local QuestDB, so Claude can read and change it.
 
 Speaks MCP over stdin/stdout and calls QuestDB's HTTP API. Standard library
-only. Anything that could change data is refused here, before it is sent.
+only. Every statement QuestDB accepts is allowed, including ones that change
+or delete data.
 """
 
 import json
@@ -16,13 +17,6 @@ import urllib.request
 BASE_URL = os.environ.get("QUESTDB_URL", "http://127.0.0.1:9000")
 DEFAULT_ROWS = 200
 MAX_ROWS = 5000
-
-ALLOWED_START = {"select", "with", "show", "explain"}
-FORBIDDEN = re.compile(
-    r"\b(insert|update|delete|drop|alter|truncate|create|rename|copy|backup"
-    r"|vacuum|reindex|repair|snapshot|grant|revoke|cancel|checkpoint)\b",
-    re.IGNORECASE,
-)
 
 TOOLS = [
     {
@@ -42,9 +36,9 @@ TOOLS = [
     {
         "name": "query",
         "description": (
-            "Run a read-only QuestDB SQL query (SELECT, WITH, SHOW or EXPLAIN). "
-            "Statements that change data are refused. Timestamps are UTC; "
-            "IST is UTC+05:30."
+            "Run one QuestDB SQL statement of any kind: queries, INSERT, "
+            "UPDATE, CREATE, ALTER, DROP and so on. Changes are permanent. "
+            "Timestamps are UTC; IST is UTC+05:30."
         ),
         "inputSchema": {
             "type": "object",
@@ -52,32 +46,13 @@ TOOLS = [
                 "sql": {"type": "string"},
                 "max_rows": {
                     "type": "integer",
-                    "description": "Rows to return (default 200, at most 5000).",
+                    "description": "Rows a query returns (default 200, at most 5000).",
                 },
             },
             "required": ["sql"],
         },
     },
 ]
-
-
-def check_read_only(sql):
-    """Returns why `sql` is refused, or None if it may run."""
-    text = re.sub(r"'(?:[^']|'')*'", "''", sql)
-    text = re.sub(r'"[^"]*"', '""', text)
-    text = re.sub(r"--[^\n]*", " ", text)
-    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.DOTALL).strip()
-    if text.endswith(";"):
-        text = text[:-1].rstrip()
-    if ";" in text:
-        return "only one statement at a time"
-    words = text.split(None, 1)
-    if not words or words[0].lower() not in ALLOWED_START:
-        return "only SELECT, WITH, SHOW and EXPLAIN are allowed"
-    found = FORBIDDEN.search(text)
-    if found:
-        return "read-only: {} is not allowed".format(found.group(1).upper())
-    return None
 
 
 def run_sql(sql, rows):
@@ -97,6 +72,8 @@ def run_sql(sql, rows):
                 BASE_URL, e.reason
             )
         )
+    if "columns" not in body:
+        return body  # the answer to a statement that changes something
     return {
         "columns": [c["name"] for c in body.get("columns", [])],
         "rows": body.get("dataset", []),
@@ -117,9 +94,8 @@ def call_tool(name, args):
         return run_sql("SHOW COLUMNS FROM {}".format(table), MAX_ROWS)
     if name == "query":
         sql = str(args.get("sql", ""))
-        why = check_read_only(sql)
-        if why:
-            raise ValueError(why)
+        if not sql.strip():
+            raise ValueError("sql is empty")
         try:
             rows = int(args.get("max_rows", DEFAULT_ROWS))
         except (TypeError, ValueError):
