@@ -1,7 +1,5 @@
 [workspace]
 resolver = "3"
-# Crates are added here as they get real code; the empty scaffold folders are
-# intentionally not listed yet.
 members = ["crates/brokers/dhan", "crates/backtest", "crates/core", "crates/costs", "crates/engine", "crates/indicators", "crates/oms", "crates/risk", "crates/sim", "crates/store", "crates/strategies", "apps/backtester", "apps/tools"]
 
 [workspace.package]
