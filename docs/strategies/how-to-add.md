@@ -62,7 +62,7 @@ scripts/questdb.sh start
 scripts/questdb.sh init
 ```
 
-Set `DHAN_CLIENT_ID` and `DHAN_ACCESS_TOKEN` in your shell, never in a file in the repo. Then:
+Set `DHAN_CLIENT_ID`, `DHAN_PIN` and `DHAN_TOTP_SECRET` in your shell, never in a tracked file. Tokens are then issued and saved automatically; see the [token runbook](../runbook/dhan-token.md). Then:
 
 ```bash
 cargo run --release -p tools --bin dhan-history -- --symbols-file config/universes/liquid_starter.txt --from 2022-01-01 --to 2026-10-31

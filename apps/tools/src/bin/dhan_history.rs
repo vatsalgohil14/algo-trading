@@ -2,7 +2,7 @@
 //! the universe file the backtester reads.
 //!
 //! ```bash
-//! export DHAN_CLIENT_ID=...  DHAN_ACCESS_TOKEN=...
+//! export DHAN_CLIENT_ID=...  DHAN_PIN=...  DHAN_TOTP_SECRET=...
 //! scripts/questdb.sh start
 //! cargo run --release -p tools --bin dhan-history -- \
 //!     --symbols-file config/universes/liquid_starter.txt \
@@ -20,6 +20,7 @@ use std::sync::Arc;
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use clap::Parser;
 use dhan::instruments::{Instrument, InstrumentMaster};
+use dhan::token::connect_from_env;
 use dhan::{Candle, CandleInterval, Decimal, DhanClient, ExchangeSegment, IntradayCandlesRequest};
 use rust_decimal::prelude::ToPrimitive;
 use store::rows::Bar as BarRow;
@@ -146,7 +147,7 @@ async fn run(args: &Args) -> Result<(), Error> {
         return Err("give --symbols or --symbols-file".into());
     }
 
-    let client = DhanClient::from_env()?;
+    let client = connect_from_env().await?;
     let master = InstrumentMaster::download(&reqwest::Client::new()).await?;
     let store = Store::start(StoreConfig {
         addr: args.qdb.clone(),

@@ -17,7 +17,7 @@ part of the system (live trader, backtest data loader, tools).
 | History | `daily_candles`, `intraday_candles`, `intraday_candles_range` (auto-splits >90 days) |
 | Statements | `ledger`, `trade_history`, `trade_history_all` (with per-trade charges) |
 | Account | `profile`, `renew_token`, `set_static_ip`, `modify_static_ip`, `static_ips` |
-| Tokens | `auth::DhanAuth` — PIN+TOTP flow (with local TOTP generation) and API-key consent flow |
+| Tokens | `auth::DhanAuth` — PIN+TOTP flow (with local TOTP generation) and API-key consent flow; `token::TokenKeeper` — renews automatically |
 | Live market feed | `feed::MarketFeed` — binary WebSocket, ticker / quote / full (5-level depth) |
 | Live order updates | `order_update::OrderUpdateStream` — JSON WebSocket |
 | Instruments | `instruments::InstrumentMaster` — symbol → security ID, tick size, circuits, ASM/GSM flags |

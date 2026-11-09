@@ -10,6 +10,9 @@
 //!    [`DhanAuth::generate_consent`] → open [`DhanAuth::consent_login_url`] →
 //!    [`DhanAuth::consume_consent`] with the `tokenId` from the redirect.
 //!
+//! [`token::TokenKeeper`](crate::token::TokenKeeper) runs the first flow
+//! automatically, so nobody has to log in each day.
+//!
 //! A token generated on web.dhan.co can be extended with
 //! [`DhanClient::renew_token`](crate::DhanClient::renew_token).
 
@@ -163,9 +166,17 @@ async fn send<T: serde::de::DeserializeOwned>(
     req: reqwest::RequestBuilder,
     endpoint: &str,
 ) -> Result<T> {
-    let resp = req.send().await.map_err(DhanError::transport)?;
+    // The URL carries the PIN and TOTP code, so it must not reach any
+    // error message.
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| DhanError::transport(e.without_url()))?;
     let status = resp.status();
-    let body = resp.bytes().await.map_err(DhanError::transport)?;
+    let body = resp
+        .bytes()
+        .await
+        .map_err(|e| DhanError::transport(e.without_url()))?;
     if !status.is_success() {
         return Err(DhanError::from_response(status.as_u16(), &body));
     }

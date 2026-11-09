@@ -48,6 +48,8 @@ pub mod feed;
 pub mod instruments;
 pub mod order_update;
 pub mod rest;
+#[cfg(feature = "totp")]
+pub mod token;
 
 pub use config::{DhanConfig, Secret};
 pub use error::{DhanError, ErrorKind};

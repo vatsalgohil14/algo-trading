@@ -14,6 +14,10 @@ path = "src/bin/synth_bars.rs"
 name = "dhan-history"
 path = "src/bin/dhan_history.rs"
 
+[[bin]]
+name = "dhan-token"
+path = "src/bin/dhan_token.rs"
+
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
