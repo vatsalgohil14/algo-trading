@@ -30,7 +30,7 @@ fn config() -> OrbConfig {
         atr_days: 2,
         turnover_days: 2,
         min_turnover_cr: 10.0,
-        volume_bars: 5,
+        volume_days: 2,
         ..OrbConfig::default()
     }
 }
@@ -89,7 +89,33 @@ impl H {
         h
     }
 
+    /// A bar on `day`, then the end of its minute.
     fn bar_on(
+        &mut self,
+        inst: u32,
+        day: NaiveDate,
+        minute: i64,
+        ohlc: [f64; 4],
+        volume: u64,
+    ) -> Vec<Signal> {
+        let mut out = self.feed(inst, day, minute, ohlc, volume);
+        out.extend(self.end_minute(day, minute));
+        out
+    }
+
+    fn end_minute(&mut self, day: NaiveDate, minute: i64) -> Vec<Signal> {
+        let open = MarketHours::NSE_EQUITY.open_at(day).unwrap();
+        let mut out = Vec::new();
+        self.orb
+            .on_minute_end(open.plus_minutes(minute + 1), &mut out);
+        for s in &out {
+            s.validate(Price::ZERO).unwrap();
+        }
+        out
+    }
+
+    /// A bar on its own, leaving the minute open.
+    fn feed(
         &mut self,
         inst: u32,
         day: NaiveDate,
@@ -586,6 +612,71 @@ fn strategy_wide_limits() {
 }
 
 #[test]
+fn best_breakout_gets_the_last_slot() {
+    let mut h = H::new(
+        OrbConfig {
+            max_open: 1,
+            ..config()
+        },
+        2,
+    );
+    h.range(0, 16);
+    h.range(1, 16);
+    let today = date(TODAY);
+    let ohlc = [501.0, 502.6, 500.8, 502.5];
+    // Nothing is decided until every stock's bar is in.
+    assert!(h.feed(0, today, 16, ohlc, 2000).is_empty());
+    assert!(h.feed(1, today, 16, ohlc, 5000).is_empty());
+    let out = h.end_minute(today, 16);
+    // Stock 1 is processed second but has the higher relative volume.
+    assert_eq!(only(&out).instrument, InstrumentId(1));
+    assert_eq!(h.rejected("max_open"), 1);
+    assert_eq!(h.orb.entries_today(), 1);
+}
+
+#[test]
+fn several_breakouts_are_all_taken_when_there_is_room() {
+    let mut h = H::new(config(), 2);
+    h.range(0, 16);
+    h.range(1, 16);
+    let today = date(TODAY);
+    let ohlc = [501.0, 502.6, 500.8, 502.5];
+    h.feed(0, today, 16, ohlc, 2000);
+    h.feed(1, today, 16, ohlc, 5000);
+    let who: Vec<_> = h
+        .end_minute(today, 16)
+        .iter()
+        .map(|s| s.instrument.0)
+        .collect();
+    assert_eq!(who, [1, 0]);
+}
+
+#[test]
+fn a_breakout_is_not_taken_if_its_minute_already_ended() {
+    let mut h = H::new(config(), 1);
+    h.range(0, 16);
+    let today = date(TODAY);
+    let ohlc = [501.0, 502.6, 500.8, 502.5];
+    h.feed(0, today, 16, ohlc, 2000);
+    assert!(h.end_minute(today, 17).is_empty());
+    assert_eq!(h.rejected("late_bar"), 1);
+    assert_eq!(h.orb.entries_today(), 0);
+    // The stock can still trigger on a later bar.
+    assert_eq!(only(&h.breakout(0, 18)).intent, Intent::EnterLong);
+}
+
+#[test]
+fn a_breakout_waits_for_its_own_minute_to_end() {
+    let mut h = H::new(config(), 1);
+    h.range(0, 16);
+    let today = date(TODAY);
+    h.feed(0, today, 16, [501.0, 502.6, 500.8, 502.5], 2000);
+    assert!(h.end_minute(today, 15).is_empty());
+    assert_eq!(h.rejected("late_bar"), 0);
+    assert_eq!(only(&h.end_minute(today, 16)).intent, Intent::EnterLong);
+}
+
+#[test]
 fn counters_reset_each_day() {
     let mut h = H::new(
         OrbConfig {
@@ -609,7 +700,7 @@ fn counters_reset_each_day() {
         };
         h.bar_on(0, next, m, ohlc, 1000);
     }
-    let out = h.bar_on(0, next, 16, [501.0, 502.6, 500.8, 502.5], 2000);
+    let out = h.bar_on(0, next, 16, [501.0, 502.6, 500.8, 502.5], 5000);
     assert_eq!(only(&out).intent, Intent::EnterLong);
 }
 

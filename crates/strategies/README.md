@@ -13,6 +13,9 @@ set.add(Box::new(orb), &stocks_for_orb)?;      // which stocks each strategy tra
 // per bar:
 let session = bank.update(&bar)?;
 set.on_bar(&bar, |strategy| Context { /* position of `strategy`, feed health, ... */ }, &mut signals);
+
+// once per minute, after every stock's bar for that minute:
+set.on_minute_end(close, &mut signals);
 ```
 
 | Strategy | Rules |

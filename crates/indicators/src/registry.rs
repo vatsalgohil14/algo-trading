@@ -38,6 +38,7 @@ impl Registry {
         r.register("vwap", volume::Vwap::from_spec);
         r.register("vol_sma", volume::VolumeSma::from_spec);
         r.register("turnover", volume::DailyTurnover::from_spec);
+        r.register("vol_tod", volume::MinuteVolume::from_spec);
         r.register("orb", levels::OpeningRange::from_spec);
         r.register("prev_day", levels::PrevDay::from_spec);
         r

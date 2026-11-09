@@ -37,7 +37,9 @@ pub use set::StrategySet;
 use std::fmt::Debug;
 
 use indicators::{BarContext, IndicatorBank};
-use trading_core::{Bar, Instrument, InstrumentId, MarketHours, Money, Price, Signal, StrategyId};
+use trading_core::{
+    Bar, Instrument, InstrumentId, MarketHours, Money, Price, Signal, StrategyId, Timestamp,
+};
 
 /// This strategy's position in one stock, as the order manager sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,6 +93,14 @@ pub trait Strategy: Send + Debug {
     /// trades, after the indicators have taken it. Push any signals onto
     /// `out`; they are acted on from the next bar, never this one.
     fn on_bar(&mut self, bar: &Bar, ctx: &Context<'_>, out: &mut Vec<Signal>);
+
+    /// Called once per minute, after the bars of every stock for the
+    /// minute ending at `close` have been given to [`on_bar`](Self::on_bar)
+    /// (or a short deadline has passed). For decisions that compare stocks,
+    /// such as choosing among several breakouts when only some can be taken.
+    fn on_minute_end(&mut self, close: Timestamp, out: &mut Vec<Signal>) {
+        let _ = (close, out);
+    }
 }
 
 /// Whether `instrument` is within a per-stock table of `len` entries.

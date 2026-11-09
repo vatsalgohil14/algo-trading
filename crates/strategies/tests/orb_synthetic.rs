@@ -22,7 +22,8 @@ use sim::synthetic::{SyntheticConfig, SyntheticMarket, sample_universe, weekdays
 use strategies::orb::{Orb, OrbConfig};
 use strategies::{Context, PositionView, Strategy};
 use trading_core::{
-    Bar, Exchange, Intent, MarketHours, MinuteOfDay, Money, Price, Signal, StrategyId, Universe,
+    Bar, Exchange, InstrumentId, Intent, MarketHours, MinuteOfDay, Money, Price, Signal,
+    StrategyId, Universe,
 };
 
 const STOCKS: u32 = 40;
@@ -120,6 +121,47 @@ struct Summary {
     realized: Money,
 }
 
+#[derive(Debug, Default)]
+struct Tally {
+    entries: u32,
+    exits: Vec<(&'static str, u32)>,
+}
+
+impl Tally {
+    /// Checks one signal against the rules and counts it.
+    fn record(&mut self, s: &Signal, book: &Book, entered_today: &mut HashSet<InstrumentId>) {
+        s.validate(s.entry.unwrap_or(Price::ZERO)).unwrap();
+        match s.intent {
+            Intent::EnterLong | Intent::EnterShort => {
+                let t = s.ts.ist_minute_of_day();
+                assert!(
+                    t >= MinuteOfDay::new(9, 31).unwrap() && t <= MinuteOfDay::new(11, 30).unwrap(),
+                    "entry at {t}"
+                );
+                assert!(
+                    entered_today.insert(s.instrument),
+                    "second entry in {}",
+                    s.instrument
+                );
+                assert_eq!(book.qty, 0, "entry while holding a position");
+                self.entries += 1;
+            }
+            Intent::Exit => match self.exits.iter_mut().find(|(r, _)| *r == s.reason) {
+                Some((_, n)) => *n += 1,
+                None => self.exits.push((s.reason, 1)),
+            },
+            Intent::AdjustStop => {
+                let favour = if book.qty > 0 {
+                    s.stop.unwrap() > book.stop
+                } else {
+                    s.stop.unwrap() < book.stop
+                };
+                assert!(book.qty != 0 && favour, "stop moved the wrong way");
+            }
+        }
+    }
+}
+
 fn run() -> (Summary, Vec<(&'static str, u64)>) {
     let profiles = sample_universe(STOCKS, 11);
     let mut universe = Universe::new();
@@ -141,20 +183,27 @@ fn run() -> (Summary, Vec<(&'static str, u64)>) {
     let hours = MarketHours::NSE_EQUITY;
 
     let mut books = vec![Book::default(); STOCKS as usize];
-    let mut entries = 0;
+    let mut tally = Tally::default();
     let mut fills = 0;
-    let mut exits: Vec<(&'static str, u32)> = Vec::new();
     let mut out = Vec::new();
     let from = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
     let to = NaiveDate::from_ymd_opt(2025, 6, 30).unwrap();
-    let window = (
-        MinuteOfDay::new(9, 31).unwrap(),
-        MinuteOfDay::new(11, 30).unwrap(),
-    );
 
     for date in weekdays(from, to) {
         let mut entered_today = HashSet::new();
+        let mut minute_close = None;
         for bar in market.session(date).unwrap() {
+            // Bars come ordered by time, so a new time ends the last minute.
+            let close = bar.ts.plus_minutes(1);
+            if let Some(previous) = minute_close.filter(|c| *c != close) {
+                out.clear();
+                orb.on_minute_end(previous, &mut out);
+                for s in &out {
+                    let book = &mut books[s.instrument.index()];
+                    tally.record(s, book, &mut entered_today);
+                    book.apply(s);
+                }
+            }
             let book = &mut books[bar.instrument.index()];
             book.on_bar(&bar, &mut fills);
             let session = bank.update(&bar).unwrap();
@@ -170,33 +219,18 @@ fn run() -> (Summary, Vec<(&'static str, u64)>) {
             out.clear();
             orb.on_bar(&bar, &ctx, &mut out);
             for s in &out {
-                s.validate(bar.close).unwrap();
                 assert_eq!(s.instrument, bar.instrument);
-                match s.intent {
-                    Intent::EnterLong | Intent::EnterShort => {
-                        let t = s.ts.ist_minute_of_day();
-                        assert!(t >= window.0 && t <= window.1, "entry at {t}");
-                        assert!(
-                            entered_today.insert(s.instrument),
-                            "second entry in {} on {date}",
-                            s.instrument
-                        );
-                        assert_eq!(book.qty, 0, "entry while holding a position");
-                        entries += 1;
-                    }
-                    Intent::Exit => match exits.iter_mut().find(|(r, _)| *r == s.reason) {
-                        Some((_, n)) => *n += 1,
-                        None => exits.push((s.reason, 1)),
-                    },
-                    Intent::AdjustStop => {
-                        let favour = if book.qty > 0 {
-                            s.stop.unwrap() > book.stop
-                        } else {
-                            s.stop.unwrap() < book.stop
-                        };
-                        assert!(book.qty != 0 && favour, "stop moved the wrong way");
-                    }
-                }
+                tally.record(s, book, &mut entered_today);
+                book.apply(s);
+            }
+            minute_close = Some(close);
+        }
+        if let Some(close) = minute_close {
+            out.clear();
+            orb.on_minute_end(close, &mut out);
+            for s in &out {
+                let book = &mut books[s.instrument.index()];
+                tally.record(s, book, &mut entered_today);
                 book.apply(s);
             }
         }
@@ -205,12 +239,12 @@ fn run() -> (Summary, Vec<(&'static str, u64)>) {
         }
         assert!(orb.entries_today() <= 8);
     }
-    exits.sort();
+    tally.exits.sort();
     let realized = books.iter().map(|b| b.realized).sum();
     let summary = Summary {
-        entries,
+        entries: tally.entries,
         fills,
-        exits_by_reason: exits,
+        exits_by_reason: tally.exits,
         realized,
     };
     (summary, orb.rejections().collect())

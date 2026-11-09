@@ -21,6 +21,7 @@ if let Some(v) = bank.get(bar.instrument, ema) { /* ... */ }
 | `atr_daily(n)` | value | Wilder ATR of whole days; completed days only |
 | `vwap` | value | Session VWAP of typical price, resets daily |
 | `vol_sma(n)` | value, prev | Average bar volume; `prev` excludes the current bar |
+| `vol_tod(n)` | value | Average volume of this same minute over the past `n` days; excludes today |
 | `turnover(n)` | value | Average daily traded value (₹) over completed days |
 | `orb(n)` | high, low, range | First `n` minutes; unavailable all day if any bar of the window is missing |
 | `prev_day` | high, low, close | Previous session |

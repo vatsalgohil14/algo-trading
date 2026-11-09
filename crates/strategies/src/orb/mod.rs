@@ -18,7 +18,10 @@
 //!    square-off time.
 //! 5. **Limits**: one trade per stock per day, `max_open` at once,
 //!    `max_entries_per_day`, and no new trades after `max_losses_per_day`
-//!    losers.
+//!    losers. Breakouts are collected over the minute and ranked by relative
+//!    volume ([`on_minute_end`](Strategy::on_minute_end)), so when there are
+//!    too few slots the strongest are taken, not the first processed. All of
+//!    the stocks of one instance must therefore run on the same engine shard.
 //!
 //! The stop and target sit at the broker with the entry (a super order).
 //! The strategy's own exits are on top of that, and it also exits if a bar
@@ -27,7 +30,9 @@
 //!
 //! State comes from the position reported on each bar, not from what the
 //! strategy asked for, so a rejected or unfilled entry, a stop hit at the
-//! broker, or a restart are all handled the same way.
+//! broker, or a position that should not be there are all handled the same
+//! way. State is held in memory: after a mid-day restart any open position
+//! is closed as stale, and the stock is not traded again that day.
 
 mod config;
 
@@ -66,10 +71,11 @@ enum Reject {
     MaxEntries,
     LossPause,
     InvalidSignal,
+    LateBar,
 }
 
 impl Reject {
-    const ALL: [Reject; 19] = [
+    const ALL: [Reject; 20] = [
         Reject::RangeIncomplete,
         Reject::NoHistory,
         Reject::Gap,
@@ -89,6 +95,7 @@ impl Reject {
         Reject::MaxEntries,
         Reject::LossPause,
         Reject::InvalidSignal,
+        Reject::LateBar,
     ];
 
     const fn name(self) -> &'static str {
@@ -112,6 +119,7 @@ impl Reject {
             Reject::MaxEntries => "max_entries",
             Reject::LossPause => "loss_pause",
             Reject::InvalidSignal => "invalid_signal",
+            Reject::LateBar => "late_bar",
         }
     }
 }
@@ -125,7 +133,7 @@ struct Handles {
     orb_low: Handle,
     atr: Handle,
     vwap: Handle,
-    volume_prev: Handle,
+    normal_volume: Handle,
     prev_close: Handle,
     turnover: Handle,
 }
@@ -197,6 +205,15 @@ impl Phase {
     }
 }
 
+/// A qualifying breakout, waiting for the end of the minute.
+#[derive(Debug, Clone, Copy)]
+struct Candidate {
+    plan: Plan,
+    signal: Signal,
+    /// Bar volume as a multiple of normal; higher is taken first.
+    relative_volume: f64,
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 struct Stock {
     /// IST day this state belongs to.
@@ -215,6 +232,7 @@ pub struct Orb {
     entry_end: MinuteOfDay,
     h: Handles,
     stocks: Vec<Stock>,
+    candidates: Vec<Candidate>,
     /// IST day of the latest bar seen, for the daily counters.
     day: i64,
     entries_today: u16,
@@ -251,7 +269,7 @@ impl Orb {
             orb_low: bank.require(&format!("{orb}.low"))?,
             atr: bank.require(&format!("atr_daily({})", config.atr_days))?,
             vwap: bank.require("vwap")?,
-            volume_prev: bank.require(&format!("vol_sma({}).prev", config.volume_bars))?,
+            normal_volume: bank.require(&format!("vol_tod({})", config.volume_days))?,
             prev_close: bank.require("prev_day.close")?,
             turnover: bank.require(&format!("turnover({})", config.turnover_days))?,
         };
@@ -261,6 +279,7 @@ impl Orb {
             entry_end,
             h,
             stocks: vec![Stock::default(); instruments],
+            candidates: Vec::new(),
             day: i64::MIN,
             entries_today: 0,
             losses_today: 0,
@@ -379,7 +398,7 @@ impl Orb {
         bar: &Bar,
         ctx: &Context<'_>,
         range: Range,
-    ) -> Result<Option<(Plan, Signal)>, Reject> {
+    ) -> Result<Option<Candidate>, Reject> {
         let c = &self.config;
         let tick = ctx.instrument.tick_size;
         let width = range.width();
@@ -419,7 +438,7 @@ impl Orb {
         }
         let normal = ctx
             .bank
-            .get(bar.instrument, self.h.volume_prev)
+            .get(bar.instrument, self.h.normal_volume)
             .filter(|v| *v > 0.0)
             .ok_or(Reject::Volume)?;
         if (bar.volume as f64) < c.volume_mult * normal {
@@ -453,17 +472,6 @@ impl Orb {
             return Err(Reject::TargetTooSmall);
         }
 
-        let active = self.stocks.iter().filter(|s| s.phase.is_active()).count();
-        if active >= usize::from(c.max_open) {
-            return Err(Reject::MaxOpen);
-        }
-        if self.entries_today >= c.max_entries_per_day {
-            return Err(Reject::MaxEntries);
-        }
-        if self.losses_today >= c.max_losses_per_day {
-            return Err(Reject::LossPause);
-        }
-
         let intent = if long {
             Intent::EnterLong
         } else {
@@ -483,7 +491,27 @@ impl Orb {
             stop,
             realized_before: ctx.position.realized,
         };
-        Ok(Some((plan, signal)))
+        Ok(Some(Candidate {
+            plan,
+            signal,
+            relative_volume: bar.volume as f64 / normal,
+        }))
+    }
+
+    /// The strategy-wide limits, checked as each candidate is taken.
+    fn check_limits(&self) -> Result<(), Reject> {
+        let c = &self.config;
+        let active = self.stocks.iter().filter(|s| s.phase.is_active()).count();
+        if active >= usize::from(c.max_open) {
+            return Err(Reject::MaxOpen);
+        }
+        if self.entries_today >= c.max_entries_per_day {
+            return Err(Reject::MaxEntries);
+        }
+        if self.losses_today >= c.max_losses_per_day {
+            return Err(Reject::LossPause);
+        }
+        Ok(())
     }
 
     /// Manages an open trade on a bar. Returns the next phase.
@@ -651,10 +679,9 @@ impl Orb {
                 } else {
                     match self.check_entry(bar, ctx, range) {
                         Ok(None) => Phase::Ready(range),
-                        Ok(Some((plan, signal))) => {
-                            out.push(signal);
-                            self.entries_today = self.entries_today.saturating_add(1);
-                            Phase::Pending { plan, at: close_ts }
+                        Ok(Some(candidate)) => {
+                            self.candidates.push(candidate);
+                            Phase::Ready(range)
                         }
                         Err(r) => {
                             self.reject(stock, r);
@@ -753,6 +780,49 @@ impl Strategy for Orb {
         }
         if let Some(slot) = self.stocks.get_mut(i) {
             *slot = stock;
+        }
+    }
+
+    fn on_minute_end(&mut self, close: Timestamp, out: &mut Vec<Signal>) {
+        if self.candidates.is_empty() {
+            return;
+        }
+        let mut due = std::mem::take(&mut self.candidates);
+        // A bar of the next minute can arrive before this minute is closed.
+        self.candidates = due.extract_if(.., |c| c.signal.ts > close).collect();
+        due.sort_by(|a, b| {
+            b.relative_volume
+                .total_cmp(&a.relative_volume)
+                .then(a.signal.instrument.cmp(&b.signal.instrument))
+        });
+        for c in due {
+            let i = c.signal.instrument.index();
+            let Some(mut stock) = self.stocks.get(i).copied() else {
+                continue;
+            };
+            if !matches!(stock.phase, Phase::Ready(_)) {
+                continue;
+            }
+            // A bar that missed its own minute is too old to trade on.
+            let decision = if c.signal.ts < close {
+                Err(Reject::LateBar)
+            } else {
+                self.check_limits()
+            };
+            match decision {
+                Ok(()) => {
+                    out.push(c.signal);
+                    self.entries_today = self.entries_today.saturating_add(1);
+                    stock.phase = Phase::Pending {
+                        plan: c.plan,
+                        at: close,
+                    };
+                }
+                Err(r) => self.reject(&mut stock, r),
+            }
+            if let Some(slot) = self.stocks.get_mut(i) {
+                *slot = stock;
+            }
         }
     }
 }

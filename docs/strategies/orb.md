@@ -31,10 +31,12 @@ Every condition must hold on a completed 1-minute bar:
 1. It **closes** at or above range high + buffer. The buffer is 5% of the range width, at least one tick (`breakout_buffer`). A spike that closes back inside doesn't count.
 2. The bar starts before **11:30** (`entry_end`) and before the session's last-entry time (14:45).
 3. Close is **above VWAP** (`require_vwap`).
-4. Bar volume is ≥ **1.5×** the average of the previous 20 bars (`volume_mult`, `volume_bars`).
+4. Bar volume is ≥ **1.5×** the normal volume for that minute of the day, averaged over the past 20 days (`volume_mult`, `volume_days`). Comparing with the same minute matters because volume is highest just after the open.
 5. Close is no more than **0.5× the range width** beyond the level (`max_chase`): don't chase.
 6. The feed is healthy, and the stock hasn't been tried today: one attempt per stock per day.
 7. Strategy limits: fewer than 5 trades open (`max_open`), fewer than 8 entries today (`max_entries_per_day`), fewer than 3 losers today (`max_losses_per_day`).
+
+**Choosing between breakouts:** breakouts are collected until every stock's bar for the minute is in, then ranked by relative volume (bar volume ÷ normal volume for that minute). The strategy limits in rule 7 are applied in that order, so when slots are short the strongest breakouts are taken. A bar that arrives after its minute has been closed isn't traded (`late_bar`).
 
 **Order:** limit at close + 0.1% (`limit_offset_pct`), rounded away from the close to the tick. The stop and target go to the broker with the entry (a super order).
 
@@ -76,11 +78,15 @@ Every condition must hold on a completed 1-minute bar:
 
 ## Design notes
 
-- **State comes from the position, not from orders.** On every bar, the strategy is told its position, which mirrors the broker. A rejected entry, a stop hit at the broker and a restart are all handled the same way.
+- **State comes from the position, not from orders.** On every bar, the strategy is told its position, which mirrors the broker. A rejected entry, a stop hit at the broker and an unexpected position are all handled the same way.
+- **Known gaps, to be closed in the engine:**
+  - State is in memory. After a mid-day restart, an open position is closed as stale, the stock isn't traded again that day, and the daily counters start from zero.
+  - Exits run only when a bar arrives, so square-off must also be driven by the clock.
+- **One shard per instance.** Ranking and the strategy limits need all of an instance's stocks on the same engine shard.
 - **No lookahead.**
   - A signal is decided at a bar's close and acted on from the next bar.
   - Daily ATR and turnover use completed days only.
-  - The volume average excludes the current bar.
+  - Normal volume uses past days only.
 - **Every rejection is counted** (`Orb::rejections`) as stock-days per filter. A backtest report can then show which filters do the work.
 
 ## Validation

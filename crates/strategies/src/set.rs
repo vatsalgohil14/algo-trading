@@ -1,6 +1,6 @@
 //! Which strategies run, and on which stocks.
 
-use trading_core::{Bar, InstrumentId, Signal, StrategyId};
+use trading_core::{Bar, InstrumentId, Signal, StrategyId, Timestamp};
 
 use crate::{Context, Strategy, StrategyError, in_range};
 
@@ -115,12 +115,20 @@ impl StrategySet {
         }
         out.len() - before
     }
+
+    /// Ends the minute closing at `close`, for every strategy. Call it
+    /// exactly once per minute, after that minute's bars.
+    pub fn on_minute_end(&mut self, close: Timestamp, out: &mut Vec<Signal>) {
+        for entry in &mut self.entries {
+            entry.strategy.on_minute_end(close, out);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use indicators::{BankBuilder, Registry};
-    use trading_core::{Exchange, Intent, MarketHours, Price, Timestamp, Universe};
+    use trading_core::{Exchange, Intent, MarketHours, Price, Universe};
 
     use super::*;
     use crate::PositionView;

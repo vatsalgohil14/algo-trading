@@ -205,6 +205,17 @@ fn ref_vol_sma(h: &[Bar], n: usize, skip_last: bool) -> Option<f64> {
     (end >= n).then(|| h[end - n..end].iter().map(|b| b.volume as f64).sum::<f64>() / n as f64)
 }
 
+fn ref_vol_tod(h: &[Bar], n: usize) -> Option<f64> {
+    let last = h.last()?;
+    let minute = last.ts.ist_minute_of_day();
+    let past: Vec<f64> = h
+        .iter()
+        .filter(|b| b.ts.ist_day() < last.ts.ist_day() && b.ts.ist_minute_of_day() == minute)
+        .map(|b| b.volume as f64)
+        .collect();
+    (past.len() >= n).then(|| past[past.len() - n..].iter().sum::<f64>() / n as f64)
+}
+
 #[test]
 fn every_indicator_matches_its_reference_on_every_bar() {
     let mut b = BankBuilder::new(Registry::builtin());
@@ -223,6 +234,7 @@ fn every_indicator_matches_its_reference_on_every_bar() {
     let turnover = b.require("turnover(2)").unwrap();
     let vol = b.require("vol_sma(20)").unwrap();
     let vol_prev = b.require("vol_sma(20).prev").unwrap();
+    let vol_tod = b.require("vol_tod(3)").unwrap();
     let mut bank = b.build(STOCKS as usize).unwrap();
 
     let bars = synthetic_bars();
@@ -251,6 +263,7 @@ fn every_indicator_matches_its_reference_on_every_bar() {
         close_enough(get(turnover), ref_turnover(h, 2), "turnover", i);
         close_enough(get(vol), ref_vol_sma(h, 20, false), "vol_sma", i);
         close_enough(get(vol_prev), ref_vol_sma(h, 20, true), "vol_sma prev", i);
+        close_enough(get(vol_tod), ref_vol_tod(h, 3), "vol_tod", i);
     }
     assert_eq!(bars.len(), 10 * 375 * STOCKS as usize);
 }
@@ -339,6 +352,32 @@ fn volume_average_before_the_current_bar() {
         got.push(bank.get(id, prev));
     }
     assert_eq!(got, [None, None, Some(15.0), Some(25.0)]);
+}
+
+#[test]
+fn minute_volume_compares_the_same_time_of_day() {
+    let (mut bank, normal) = bank_with("vol_tod(2)");
+    let id = InstrumentId(0);
+    let day = 24 * 60;
+    // The opening minute is ten times busier than the next one.
+    for d in 0..2 {
+        bank.update(&flat_bar(d * day, 100, 1000 * (d as u64 + 1)))
+            .unwrap();
+        assert_eq!(bank.get(id, normal), None);
+        bank.update(&flat_bar(d * day + 1, 100, 100)).unwrap();
+        assert_eq!(bank.get(id, normal), None);
+    }
+    // Each minute has its own average, and today's bar is not in it.
+    bank.update(&flat_bar(2 * day, 100, 9_999)).unwrap();
+    assert_eq!(bank.get(id, normal), Some(1500.0));
+    bank.update(&flat_bar(2 * day + 1, 100, 9_999)).unwrap();
+    assert_eq!(bank.get(id, normal), Some(100.0));
+    // A minute with no history yet.
+    bank.update(&flat_bar(2 * day + 2, 100, 100)).unwrap();
+    assert_eq!(bank.get(id, normal), None);
+    // The oldest day drops out: (2000 + 9999) / 2.
+    bank.update(&flat_bar(3 * day, 100, 1)).unwrap();
+    assert_eq!(bank.get(id, normal), Some(5999.5));
 }
 
 #[test]

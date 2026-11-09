@@ -41,10 +41,10 @@ pub struct OrbConfig {
     /// No new entries from this IST time (`"HH:MM"`). The bar that ends
     /// at this time is the last that can trigger an entry.
     pub entry_end: String,
-    /// Breakout bar volume must be at least this multiple of the average
-    /// of the previous `volume_bars` bars.
+    /// Breakout bar volume must be at least this multiple of the normal
+    /// volume for that minute of the day, averaged over `volume_days` days.
     pub volume_mult: f64,
-    pub volume_bars: u16,
+    pub volume_days: u16,
     /// Longs only above VWAP, shorts only below.
     pub require_vwap: bool,
     /// Entry limit price this far beyond the breakout close, in percent.
@@ -99,7 +99,7 @@ impl Default for OrbConfig {
             max_chase: 0.5,
             entry_end: "11:30".into(),
             volume_mult: 1.5,
-            volume_bars: 20,
+            volume_days: 20,
             require_vwap: true,
             limit_offset_pct: 0.1,
             entry_timeout_minutes: 3,
@@ -169,7 +169,7 @@ impl OrbConfig {
         for (name, v) in [
             ("turnover_days", self.turnover_days),
             ("atr_days", self.atr_days),
-            ("volume_bars", self.volume_bars),
+            ("volume_days", self.volume_days),
             ("entry_timeout_minutes", self.entry_timeout_minutes),
             ("max_open", self.max_open),
             ("max_entries_per_day", self.max_entries_per_day),
