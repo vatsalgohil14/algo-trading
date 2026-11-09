@@ -4,7 +4,7 @@ Everything else (indicators, risk, orders, simulated broker, reports) is already
 
 ## 1. Write the strategy
 
-Copy [`crates/strategies/src/template.rs`](../../crates/strategies/src/template.rs) to a new file. It's a small working example of the shape; the idea itself isn't worth trading. You change four things:
+Copy [`crates/strategies/src/template.rs`](https://github.com/vatsalgohil14/algo-trading/blob/main/crates/strategies/src/template.rs) to a new file. It's a small working example of the shape; the idea itself isn't worth trading. You change four things:
 
 1. **Settings:** a struct with defaults.
 2. **Per-stock state:** what to remember between bars.

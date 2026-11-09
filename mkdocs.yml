@@ -1,0 +1,69 @@
+site_name: Algo Trading
+site_description: An intraday trading system for NSE stocks, written in Rust
+site_url: https://vatsalgohil14.github.io/algo-trading/
+repo_url: https://github.com/vatsalgohil14/algo-trading
+repo_name: vatsalgohil14/algo-trading
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  icon:
+    logo: material/chart-line
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - How it works:
+      - Life of a trade: how-it-works.md
+      - Building blocks: building-blocks.md
+      - When things go wrong: safety.md
+  - Trading:
+      - Risk and costs: risk-and-costs.md
+      - "Strategy: ORB": strategies/orb.md
+      - Backtesting: backtesting.md
+      - Add a strategy: strategies/how-to-add.md
+  - Run it:
+      - Local setup: runbook/local-setup.md
+      - Dhan login: runbook/dhan-token.md
+  - Roadmap: roadmap.md
