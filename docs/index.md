@@ -27,7 +27,7 @@
 
 ## At a glance
 
-| | |
+| Item | Detail |
 |---|---|
 | **Market** | NSE cash equity, intraday only |
 | **Broker** | Dhan (Kite later) |
