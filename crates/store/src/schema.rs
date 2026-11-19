@@ -50,6 +50,36 @@ pub const TABLES: &[(&str, &[(&str, &str)])] = &[
             ("ask_qty", "INT"),
             ("total_buy_qty", "LONG"),
             ("total_sell_qty", "LONG"),
+            ("bid_px_1", "DOUBLE"),
+            ("bid_qty_1", "INT"),
+            ("bid_orders_1", "INT"),
+            ("ask_px_1", "DOUBLE"),
+            ("ask_qty_1", "INT"),
+            ("ask_orders_1", "INT"),
+            ("bid_px_2", "DOUBLE"),
+            ("bid_qty_2", "INT"),
+            ("bid_orders_2", "INT"),
+            ("ask_px_2", "DOUBLE"),
+            ("ask_qty_2", "INT"),
+            ("ask_orders_2", "INT"),
+            ("bid_px_3", "DOUBLE"),
+            ("bid_qty_3", "INT"),
+            ("bid_orders_3", "INT"),
+            ("ask_px_3", "DOUBLE"),
+            ("ask_qty_3", "INT"),
+            ("ask_orders_3", "INT"),
+            ("bid_px_4", "DOUBLE"),
+            ("bid_qty_4", "INT"),
+            ("bid_orders_4", "INT"),
+            ("ask_px_4", "DOUBLE"),
+            ("ask_qty_4", "INT"),
+            ("ask_orders_4", "INT"),
+            ("bid_px_5", "DOUBLE"),
+            ("bid_qty_5", "INT"),
+            ("bid_orders_5", "INT"),
+            ("ask_px_5", "DOUBLE"),
+            ("ask_qty_5", "INT"),
+            ("ask_orders_5", "INT"),
         ],
     ),
     (
@@ -174,6 +204,17 @@ pub const TABLES: &[(&str, &[(&str, &str)])] = &[
             ("message", "VARCHAR"),
         ],
     ),
+    ("indicators_1m", INDICATOR_COLUMNS),
+    ("indicators_live", INDICATOR_COLUMNS),
+];
+
+const INDICATOR_COLUMNS: &[(&str, &str)] = &[
+    ("ts", "TIMESTAMP"),
+    ("segment", "SYMBOL"),
+    ("security_id", "INT"),
+    ("symbol", "SYMBOL"),
+    ("indicator", "SYMBOL"),
+    ("value", "DOUBLE"),
 ];
 
 const BAR_COLUMNS: &[(&str, &str)] = &[
@@ -241,7 +282,19 @@ mod tests {
         let mut current: Option<(String, Vec<(String, String)>)> = None;
         for raw in SCHEMA_SQL.lines() {
             let line = raw.split("--").next().unwrap_or("").trim();
-            if let Some(rest) = line.strip_prefix("CREATE TABLE IF NOT EXISTS ") {
+            if let Some(rest) = line.strip_prefix("ALTER TABLE ") {
+                // `ALTER TABLE t ADD COLUMN IF NOT EXISTS c TYPE;`
+                let words: Vec<&str> = rest.trim_end_matches(';').split_whitespace().collect();
+                if let [table, "ADD", "COLUMN", "IF", "NOT", "EXISTS", col, ty] = words[..] {
+                    let t = out
+                        .iter_mut()
+                        .find(|(name, _): &&mut (String, Vec<(String, String)>)| name == table)
+                        .unwrap_or_else(|| panic!("ALTER of unknown table {table}"));
+                    t.1.push((col.to_owned(), ty.to_owned()));
+                } else {
+                    panic!("unsupported ALTER in schema.sql: {line}");
+                }
+            } else if let Some(rest) = line.strip_prefix("CREATE TABLE IF NOT EXISTS ") {
                 let name = rest.trim_end_matches('(').trim().to_owned();
                 current = Some((name, Vec::new()));
             } else if line.starts_with(')') {

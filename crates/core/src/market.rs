@@ -64,6 +64,11 @@ pub struct Tick {
     pub volume: u64,
     pub bid: Option<Price>,
     pub ask: Option<Price>,
+    /// The exchange's running open, high and low for the day, when the feed
+    /// sends them. They catch trades that fell between two feed updates.
+    pub day_open: Option<Price>,
+    pub day_high: Option<Price>,
+    pub day_low: Option<Price>,
 }
 
 /// Health of the market-data connection. The engine stops opening positions

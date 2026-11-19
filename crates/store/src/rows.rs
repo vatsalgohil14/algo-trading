@@ -104,7 +104,68 @@ pub struct Tick {
     pub ask_qty: Option<i32>,
     pub total_buy_qty: Option<i64>,
     pub total_sell_qty: Option<i64>,
+    /// 5-level market depth, best price first, when the feed sends it.
+    pub depth: Option<[DepthLevel; DEPTH_LEVELS]>,
 }
+
+/// Levels of market depth stored per tick.
+pub const DEPTH_LEVELS: usize = 5;
+
+/// One level of the order book: both sides at the same rank.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct DepthLevel {
+    pub bid_px: f64,
+    pub bid_qty: i32,
+    pub bid_orders: i32,
+    pub ask_px: f64,
+    pub ask_qty: i32,
+    pub ask_orders: i32,
+}
+
+/// `[bid_px, bid_qty, bid_orders, ask_px, ask_qty, ask_orders]` column
+/// names for each depth level.
+const DEPTH_COLUMNS: [[&str; 6]; DEPTH_LEVELS] = [
+    [
+        "bid_px_1",
+        "bid_qty_1",
+        "bid_orders_1",
+        "ask_px_1",
+        "ask_qty_1",
+        "ask_orders_1",
+    ],
+    [
+        "bid_px_2",
+        "bid_qty_2",
+        "bid_orders_2",
+        "ask_px_2",
+        "ask_qty_2",
+        "ask_orders_2",
+    ],
+    [
+        "bid_px_3",
+        "bid_qty_3",
+        "bid_orders_3",
+        "ask_px_3",
+        "ask_qty_3",
+        "ask_orders_3",
+    ],
+    [
+        "bid_px_4",
+        "bid_qty_4",
+        "bid_orders_4",
+        "ask_px_4",
+        "ask_qty_4",
+        "ask_orders_4",
+    ],
+    [
+        "bid_px_5",
+        "bid_qty_5",
+        "bid_orders_5",
+        "ask_px_5",
+        "ask_qty_5",
+        "ask_orders_5",
+    ],
+];
 
 impl Tick {
     fn append(&self, buf: &mut Buffer) -> QResult {
@@ -122,7 +183,44 @@ impl Tick {
             .column_i32_opt("bid_qty", self.bid_qty)?
             .column_i32_opt("ask_qty", self.ask_qty)?
             .column_i64_opt("total_buy_qty", self.total_buy_qty)?
-            .column_i64_opt("total_sell_qty", self.total_sell_qty)?
+            .column_i64_opt("total_sell_qty", self.total_sell_qty)?;
+        if let Some(depth) = &self.depth {
+            for (level, names) in depth.iter().zip(DEPTH_COLUMNS.iter()) {
+                let [bp, bq, bo, ap, aq, ao] = *names;
+                buf.column_f64(bp, level.bid_px)?
+                    .column_i32(bq, level.bid_qty)?
+                    .column_i32(bo, level.bid_orders)?
+                    .column_f64(ap, level.ask_px)?
+                    .column_i32(aq, level.ask_qty)?
+                    .column_i32(ao, level.ask_orders)?;
+            }
+        }
+        buf.at(micros(&self.ts))
+    }
+}
+
+/// One indicator value for one stock at one time. Written to
+/// `indicators_1m` (closed candles) or `indicators_live` (every tick).
+#[derive(Debug, Clone, PartialEq)]
+pub struct IndicatorRow {
+    pub ts: DateTime<Utc>,
+    pub segment: Text,
+    pub security_id: i32,
+    pub symbol: Text,
+    /// Spec as asked for, e.g. `ema(20)` or `orb(15).high`.
+    pub indicator: Text,
+    /// `None` while the indicator is warming up.
+    pub value: Option<f64>,
+}
+
+impl IndicatorRow {
+    fn append(&self, buf: &mut Buffer, table: &str) -> QResult {
+        buf.table(table)?
+            .symbol("segment", &*self.segment)?
+            .symbol("symbol", &*self.symbol)?
+            .symbol("indicator", &*self.indicator)?
+            .column_i32("security_id", self.security_id)?
+            .column_f64_opt("value", self.value)?
             .at(micros(&self.ts))
     }
 }
@@ -445,6 +543,8 @@ pub enum Record {
     Bar1m(Bar),
     BarDaily(Bar),
     Tick(Tick),
+    Indicator1m(IndicatorRow),
+    IndicatorLive(IndicatorRow),
     Instrument(InstrumentRow),
     Run(RunRow),
     Signal(SignalRow),
@@ -461,6 +561,8 @@ impl Record {
             Record::Bar1m(_) => "bars_1m",
             Record::BarDaily(_) => "bars_daily",
             Record::Tick(_) => "ticks",
+            Record::Indicator1m(_) => "indicators_1m",
+            Record::IndicatorLive(_) => "indicators_live",
             Record::Instrument(_) => "instruments",
             Record::Run(_) => "runs",
             Record::Signal(_) => "signals",
@@ -478,6 +580,8 @@ impl Record {
             Record::Bar1m(b) => b.append(buf, "bars_1m"),
             Record::BarDaily(b) => b.append(buf, "bars_daily"),
             Record::Tick(t) => t.append(buf),
+            Record::Indicator1m(r) => r.append(buf, "indicators_1m"),
+            Record::IndicatorLive(r) => r.append(buf, "indicators_live"),
             Record::Instrument(i) => i.append(buf),
             Record::Run(r) => r.append(buf),
             Record::Signal(s) => s.append(buf),

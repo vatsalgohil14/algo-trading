@@ -17,6 +17,9 @@ use dhan::feed::packet::to_price;
 use dhan::feed::{FeedEvent, FeedMode, FeedPacket, MarketFeed, MarketFeedConfig};
 use dhan::token::connect_from_env;
 
+/// Dhan sends trade times as IST clock time written as if it were UTC.
+const DHAN_LTT_OFFSET_SECS: i64 = 5 * 3600 + 1800;
+
 #[derive(Default)]
 struct Seen {
     symbol: String,
@@ -25,6 +28,7 @@ struct Seen {
     ltp: f32,
     volume: u32,
     ltt: u32,
+    day: (f32, f32, f32),
 }
 
 fn ist(epoch: i64) -> String {
@@ -107,6 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         s.ltp = q.ltp;
                         s.volume = q.volume;
                         s.ltt = q.ltt;
+                        s.day = (q.open, q.high, q.low);
                     }
                 }
                 Some(FeedEvent::Packet(_)) => other += 1,
@@ -116,12 +121,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     feed.shutdown().await;
 
     println!(
-        "\n{:<12} {:>7} {:>10} {:>10} {:>12} {:>9}",
-        "symbol", "quotes", "first", "last", "volume", "ltt"
+        "\n{:<12} {:>7} {:>10} {:>10} {:>12} {:>9} {:>10} {:>10} {:>10}",
+        "symbol", "quotes", "first", "last", "volume", "ltt", "day open", "day high", "day low"
     );
     for s in seen.values() {
         println!(
-            "{:<12} {:>7} {:>10} {:>10} {:>12} {:>9}",
+            "{:<12} {:>7} {:>10} {:>10} {:>12} {:>9} {:>10} {:>10} {:>10}",
             s.symbol,
             s.packets,
             to_price(s.first_ltp),
@@ -130,8 +135,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if s.ltt == 0 {
                 "-".into()
             } else {
-                ist(i64::from(s.ltt))
-            }
+                // Dhan sends IST clock time written as if it were UTC.
+                ist(i64::from(s.ltt) - DHAN_LTT_OFFSET_SECS)
+            },
+            to_price(s.day.0),
+            to_price(s.day.1),
+            to_price(s.day.2),
         );
     }
     let silent: Vec<_> = seen

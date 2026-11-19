@@ -16,6 +16,7 @@
 - [x] Connect to the real Dhan API, read-only first
 - [x] Nifty 50 universe and real 1-minute history from December 2021
 - [x] Live feed, live candles, and live and closed indicators ([Live monitor](runbook/live-monitor.md))
+- [x] Recording 5-level depth and indicator values in QuestDB, joinable by time
 
 ## Next
 

@@ -27,9 +27,9 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{NaiveTime, TimeDelta, Utc};
+use chrono::{DateTime, NaiveTime, TimeDelta, Utc};
 use clap::Parser;
-use dhan::feed::packet::Quote;
+use dhan::feed::packet::{Full, Quote};
 use dhan::feed::{FeedEvent, FeedMode, FeedPacket, MarketFeed, MarketFeedConfig};
 use dhan::token::connect_from_env;
 use dhan::{
@@ -38,7 +38,7 @@ use dhan::{
 };
 use indicators::{BankBuilder, Handle, IndicatorBank, Registry};
 use store::query::{BarTable, QueryClient};
-use store::rows::{Bar as BarRow, Tick as TickRow};
+use store::rows::{Bar as BarRow, DEPTH_LEVELS, DepthLevel, IndicatorRow, Tick as TickRow};
 use store::{Record, Store, StoreConfig};
 use trading_core::{Bar, CandleBuilder, InstrumentId, MarketHours, Price, Tick, Timestamp};
 
@@ -77,6 +77,76 @@ struct Args {
     no_store: bool,
     #[arg(long, default_value = "127.0.0.1:9000")]
     qdb: String,
+}
+
+/// Dhan sends prices as 32-bit floats; `1354.6` arrives as `1354.5999755`.
+/// Rounded to the paisa so stored prices read as the exchange quoted them.
+fn paise_f64(v: f32) -> f64 {
+    (f64::from(v) * 100.0).round() / 100.0
+}
+
+/// One feed update, from either quote or full (quote + depth) packets.
+struct Snapshot {
+    security_id: u32,
+    ltp: f32,
+    ltq: u16,
+    ltt: u32,
+    atp: f32,
+    volume: u32,
+    total_buy_qty: u32,
+    total_sell_qty: u32,
+    open: f32,
+    high: f32,
+    low: f32,
+    depth: Option<[DepthLevel; DEPTH_LEVELS]>,
+}
+
+impl Snapshot {
+    fn from_quote(q: &Quote) -> Self {
+        Self {
+            security_id: q.header.security_id,
+            ltp: q.ltp,
+            ltq: q.ltq,
+            ltt: q.ltt,
+            atp: q.atp,
+            volume: q.volume,
+            total_buy_qty: q.total_buy_qty,
+            total_sell_qty: q.total_sell_qty,
+            open: q.open,
+            high: q.high,
+            low: q.low,
+            depth: None,
+        }
+    }
+
+    fn from_full(f: &Full) -> Self {
+        let level = |i: usize| {
+            f.depth
+                .get(i)
+                .map_or_else(DepthLevel::default, |d| DepthLevel {
+                    bid_px: paise_f64(d.bid_price),
+                    bid_qty: i32::try_from(d.bid_qty).unwrap_or(i32::MAX),
+                    bid_orders: i32::from(d.bid_orders),
+                    ask_px: paise_f64(d.ask_price),
+                    ask_qty: i32::try_from(d.ask_qty).unwrap_or(i32::MAX),
+                    ask_orders: i32::from(d.ask_orders),
+                })
+        };
+        Self {
+            security_id: f.header.security_id,
+            ltp: f.ltp,
+            ltq: f.ltq,
+            ltt: f.ltt,
+            atp: f.atp,
+            volume: f.volume,
+            total_buy_qty: f.total_buy_qty,
+            total_sell_qty: f.total_sell_qty,
+            open: f.open,
+            high: f.high,
+            low: f.low,
+            depth: Some(std::array::from_fn(level)),
+        }
+    }
 }
 
 struct Stock {
@@ -302,55 +372,125 @@ impl Monitor {
         Ok(fed)
     }
 
-    fn on_quote(&mut self, q: &Quote) {
-        let Some(&instrument) = self.by_security.get(&q.header.security_id) else {
+    fn on_quote(&mut self, q: &Snapshot) {
+        let Some(&instrument) = self.by_security.get(&q.security_id) else {
             return;
         };
         self.ticks += 1;
-        let ltp = Price::from_rupees_f64(f64::from(q.ltp));
+        // One receive time for the tick row and its live indicator rows, so
+        // they join on (ts, security_id).
+        let received = Utc::now();
+        let ltp = Price::from_rupees_f64(paise_f64(q.ltp));
         let ltt =
             (q.ltt > 0).then(|| Timestamp::from_secs(i64::from(q.ltt) - DHAN_LTT_OFFSET_SECS));
+        self.store_tick(instrument, q, received, ltt);
 
-        if let (Some(store), Some(stock)) = (&self.store, self.stocks.get(instrument.index())) {
-            let row = TickRow {
-                ts: Utc::now(),
-                segment: Arc::from(SEGMENT),
-                security_id: i32::try_from(stock.security_id).unwrap_or_default(),
-                symbol: stock.symbol.clone(),
-                ltp: f64::from(q.ltp),
-                ltq: Some(i32::from(q.ltq)),
-                ltt: ltt.and_then(Timestamp::to_utc),
-                volume: Some(i64::from(q.volume)),
-                atp: Some(f64::from(q.atp)),
-                bid: None,
-                ask: None,
-                bid_qty: None,
-                ask_qty: None,
-                total_buy_qty: Some(i64::from(q.total_buy_qty)),
-                total_sell_qty: Some(i64::from(q.total_sell_qty)),
+        if let (Some(ltp), Some(ts)) = (ltp, ltt) {
+            if let Some(stock) = self.stocks.get_mut(instrument.index()) {
+                stock.ltp = Some(ltp);
+            }
+            let tick = Tick {
+                instrument,
+                ts,
+                ltp,
+                ltq: u32::from(q.ltq),
+                volume: u64::from(q.volume),
+                bid: q.depth.and_then(|d| Price::from_rupees_f64(d[0].bid_px)),
+                ask: q.depth.and_then(|d| Price::from_rupees_f64(d[0].ask_px)),
+                day_open: Price::from_rupees_f64(f64::from(q.open)),
+                day_high: Price::from_rupees_f64(f64::from(q.high)),
+                day_low: Price::from_rupees_f64(f64::from(q.low)),
             };
-            if let Err(e) = store.write(Record::Tick(row)) {
+            if let Some(bar) = self.candles.on_tick(&tick).closed {
+                self.on_closed(bar);
+            }
+        }
+        self.store_live_indicators(instrument, received);
+    }
+
+    fn store_tick(
+        &self,
+        instrument: InstrumentId,
+        q: &Snapshot,
+        received: DateTime<Utc>,
+        ltt: Option<Timestamp>,
+    ) {
+        let (Some(store), Some(stock)) = (&self.store, self.stocks.get(instrument.index())) else {
+            return;
+        };
+        let best = q.depth.map(|d| d[0]);
+        let row = TickRow {
+            ts: received,
+            segment: Arc::from(SEGMENT),
+            security_id: i32::try_from(stock.security_id).unwrap_or_default(),
+            symbol: stock.symbol.clone(),
+            ltp: paise_f64(q.ltp),
+            ltq: Some(i32::from(q.ltq)),
+            ltt: ltt.and_then(Timestamp::to_utc),
+            volume: Some(i64::from(q.volume)),
+            atp: Some(paise_f64(q.atp)),
+            bid: best.map(|l| l.bid_px),
+            ask: best.map(|l| l.ask_px),
+            bid_qty: best.map(|l| l.bid_qty),
+            ask_qty: best.map(|l| l.ask_qty),
+            total_buy_qty: Some(i64::from(q.total_buy_qty)),
+            total_sell_qty: Some(i64::from(q.total_sell_qty)),
+            depth: q.depth,
+        };
+        if let Err(e) = store.write(Record::Tick(row)) {
+            eprintln!("store: {e}");
+        }
+    }
+
+    /// Indicator rows for one stock: `live` previews the forming candle
+    /// (or repeats the closed value if it has not traded this minute).
+    fn indicator_rows(
+        &self,
+        instrument: InstrumentId,
+        ts: DateTime<Utc>,
+        live: bool,
+    ) -> Vec<IndicatorRow> {
+        let Some(stock) = self.stocks.get(instrument.index()) else {
+            return Vec::new();
+        };
+        let preview = live
+            .then(|| self.candles.forming(instrument))
+            .flatten()
+            .and_then(|bar| self.bank.preview(bar).ok());
+        let security_id = i32::try_from(stock.security_id).unwrap_or_default();
+        self.specs
+            .iter()
+            .zip(&self.handles)
+            .map(|(spec, h)| IndicatorRow {
+                ts,
+                segment: Arc::from(SEGMENT),
+                security_id,
+                symbol: stock.symbol.clone(),
+                indicator: Arc::from(spec.as_str()),
+                value: preview
+                    .as_ref()
+                    .map_or_else(|| self.bank.get(instrument, *h), |p| p.get(*h)),
+            })
+            .collect()
+    }
+
+    fn store_live_indicators(&self, instrument: InstrumentId, received: DateTime<Utc>) {
+        let Some(store) = &self.store else { return };
+        for row in self.indicator_rows(instrument, received, true) {
+            if let Err(e) = store.write(Record::IndicatorLive(row)) {
                 eprintln!("store: {e}");
             }
         }
+    }
 
-        let (Some(ltp), Some(ts)) = (ltp, ltt) else {
+    fn store_closed_indicators(&self, bar: &Bar) {
+        let (Some(store), Some(ts)) = (&self.store, bar.ts.to_utc()) else {
             return;
         };
-        if let Some(stock) = self.stocks.get_mut(instrument.index()) {
-            stock.ltp = Some(ltp);
-        }
-        let tick = Tick {
-            instrument,
-            ts,
-            ltp,
-            ltq: u32::from(q.ltq),
-            volume: u64::from(q.volume),
-            bid: None,
-            ask: None,
-        };
-        if let Some(bar) = self.candles.on_tick(&tick).closed {
-            self.on_closed(bar);
+        for row in self.indicator_rows(bar.instrument, ts, false) {
+            if let Err(e) = store.write(Record::Indicator1m(row)) {
+                eprintln!("store: {e}");
+            }
         }
     }
 
@@ -361,6 +501,7 @@ impl Monitor {
         }
         self.live_bars += 1;
         self.store_bar(&bar, "live");
+        self.store_closed_indicators(&bar);
         if !self
             .show
             .get(bar.instrument.index())
@@ -490,7 +631,8 @@ async fn run(args: Args) -> Result<(), Error> {
         .iter()
         .map(|s| DhanId::nse_eq(s.security_id))
         .collect();
-    feed.subscribe(FeedMode::Quote, ids)?;
+    // Full: the quote plus 5-level depth.
+    feed.subscribe(FeedMode::Full, ids)?;
     println!("streaming {} stocks; Ctrl-C to stop", m.stocks.len());
 
     let deadline =
@@ -516,7 +658,8 @@ async fn run(args: Args) -> Result<(), Error> {
             }
             ev = events.recv() => match ev {
                 None => break,
-                Some(FeedEvent::Packet(FeedPacket::Quote(q))) => m.on_quote(&q),
+                Some(FeedEvent::Packet(FeedPacket::Full(f))) => m.on_quote(&Snapshot::from_full(&f)),
+                Some(FeedEvent::Packet(FeedPacket::Quote(q))) => m.on_quote(&Snapshot::from_quote(&q)),
                 Some(FeedEvent::Connected) => println!("feed connected"),
                 Some(FeedEvent::Disconnected { reason }) => println!("feed disconnected: {reason}"),
                 Some(FeedEvent::ParseError(e)) => println!("feed parse error: {e}"),
@@ -550,6 +693,13 @@ async fn main() -> ExitCode {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn float_prices_round_to_the_paisa() {
+        assert_eq!(paise_f64(1354.6), 1354.6);
+        assert_eq!(paise_f64(223.53), 223.53);
+        assert_eq!(paise_f64(12_992.05), 12_992.05);
+    }
 
     #[test]
     fn specs_keep_bracketed_commas() {

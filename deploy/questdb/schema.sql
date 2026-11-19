@@ -209,3 +209,65 @@ CREATE TABLE IF NOT EXISTS system_events (
   event SYMBOL,
   message VARCHAR
 ) TIMESTAMP(ts) PARTITION BY DAY TTL 180 DAYS WAL;
+
+-- ---------------------------------------------------------------------------
+-- Added 2026-11-19
+-- ---------------------------------------------------------------------------
+
+-- 5-level market depth on each tick (Dhan full mode). Level 1 is the best
+-- price on each side and repeats bid / ask / bid_qty / ask_qty.
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_px_1 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_qty_1 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_orders_1 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_px_1 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_qty_1 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_orders_1 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_px_2 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_qty_2 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_orders_2 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_px_2 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_qty_2 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_orders_2 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_px_3 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_qty_3 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_orders_3 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_px_3 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_qty_3 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_orders_3 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_px_4 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_qty_4 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_orders_4 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_px_4 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_qty_4 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_orders_4 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_px_5 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_qty_5 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS bid_orders_5 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_px_5 DOUBLE;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_qty_5 INT;
+ALTER TABLE ticks ADD COLUMN IF NOT EXISTS ask_orders_5 INT;
+
+-- Closed indicator values: one row per stock, indicator and finished
+-- 1-minute candle. `ts` is the candle start, so rows join bars_1m on
+-- (ts, security_id). This is what strategies and backtests see.
+CREATE TABLE IF NOT EXISTS indicators_1m (
+  ts TIMESTAMP,
+  segment SYMBOL,
+  security_id INT,
+  symbol SYMBOL CAPACITY 8192,
+  indicator SYMBOL CAPACITY 1024,
+  value DOUBLE
+) TIMESTAMP(ts) PARTITION BY DAY WAL
+DEDUP UPSERT KEYS(ts, segment, security_id, indicator);
+
+-- Live indicator values: one row per stock and indicator on every tick, as
+-- if the forming candle closed then. `ts` equals the tick's ts, so rows
+-- join ticks on (ts, security_id). For watching and analysis, not signals.
+CREATE TABLE IF NOT EXISTS indicators_live (
+  ts TIMESTAMP,
+  segment SYMBOL,
+  security_id INT,
+  symbol SYMBOL CAPACITY 8192,
+  indicator SYMBOL CAPACITY 1024,
+  value DOUBLE
+) TIMESTAMP(ts) PARTITION BY DAY TTL 60 DAYS WAL;

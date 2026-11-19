@@ -57,7 +57,9 @@ QuestDB does not start automatically after a reboot; run `scripts/questdb.sh sta
 | `instruments` | daily snapshot of tradable instruments | month | forever |
 | `bars_1m` | 1-minute candles (history + live) | day | forever |
 | `bars_daily` | daily candles | year | forever |
-| `ticks` | raw live ticks for replay/debugging | day | 60 days |
+| `ticks` | raw live ticks with 5-level depth, for replay and analysis | day | 60 days |
+| `indicators_1m` | closed indicator values per finished candle; joins `bars_1m` | day | forever |
+| `indicators_live` | live indicator values on every tick; joins `ticks` | day | 60 days |
 | `runs` | each backtest/paper/live run and its parameters | year | forever |
 | `signals` | every signal, incl. risk rejections and reasons | day | forever |
 | `orders` | order event log (one row per status change) | day | forever |
