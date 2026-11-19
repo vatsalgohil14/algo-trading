@@ -66,4 +66,5 @@ nav:
   - Run it:
       - Local setup: runbook/local-setup.md
       - Dhan login: runbook/dhan-token.md
+      - Live monitor: runbook/live-monitor.md
   - Roadmap: roadmap.md

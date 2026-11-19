@@ -31,7 +31,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::rate_limit::{ApiCategory, RateLimiters};
-use crate::{DhanConfig, DhanError, Result, Secret};
+use crate::{DhanConfig, DhanError, ErrorKind, Result, Secret};
 
 /// Cheap-to-clone handle to the Dhan REST API. Clones share the connection
 /// pool, token and rate limiters, so use one client per account.
@@ -180,8 +180,9 @@ impl DhanClient {
         res.map_err(|e| DhanError::InvalidRequest(format!("could not encode request: {e}")))
     }
 
-    /// Sends one logical request: rate limit, send, map errors. GETs are
-    /// retried on transient failures; other methods are sent exactly once.
+    /// Sends one logical request: rate limit, send, map errors. Read-only
+    /// calls (GETs, and the data and quote POSTs) are retried on transient
+    /// failures; everything else is sent exactly once.
     async fn execute(
         &self,
         method: Method,
@@ -190,7 +191,8 @@ impl DhanClient {
         body: Option<Vec<u8>>,
         cat: ApiCategory,
     ) -> Result<Vec<u8>> {
-        let idempotent = method == Method::GET;
+        let idempotent =
+            method == Method::GET || matches!(cat, ApiCategory::Data | ApiCategory::Quote);
         let max_attempts = if idempotent {
             1 + self.inner.config.max_read_retries
         } else {
@@ -203,7 +205,13 @@ impl DhanClient {
             match self.send_once(&method, path, query, body.as_deref()).await {
                 Ok(b) => return Ok(b),
                 Err(e) if attempt < max_attempts && e.is_retryable() => {
-                    let delay = Duration::from_millis(200 * 2u64.pow(attempt - 1));
+                    // Dhan's throttle needs longer to clear than a network blip.
+                    let base = if e.kind() == ErrorKind::RateLimit {
+                        1000
+                    } else {
+                        200
+                    };
+                    let delay = Duration::from_millis(base * 2u64.pow(attempt - 1));
                     tracing::warn!(%path, attempt, ?delay, error = %e, "retrying read-only Dhan call");
                     tokio::time::sleep(delay).await;
                 }

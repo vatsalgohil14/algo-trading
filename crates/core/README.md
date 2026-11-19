@@ -7,7 +7,8 @@ so one strategy runs unchanged in backtest, paper and live trading.
 |---|---|
 | `money` | `Price` and `Money` as integer paise: exact, fast, reproducible. Tick rounding. |
 | `ids` | `InstrumentId` / `StrategyId` (dense indexes into `Vec`s), `ClientOrderId` (our order id, sent to the broker as correlation id / tag). |
-| `time` | `Timestamp` (UTC microseconds), IST helpers, `MarketHours` (09:15-15:30, last entry 14:45, square-off 15:10). |
+| `time` | `Timestamp` (UTC microseconds), IST helpers, `MarketHours` (09:15-15:30, last entry 14:45, square-off 15:10). Since 3 Aug 2026 F&O stocks trade continuously only until 15:15; see the roadmap's known gaps. |
+| `candles` | `CandleBuilder`: live ticks into 1-minute candles. Counts only ticks where volume rose, buckets by exchange trade time, closes quiet stocks on the clock. |
 | `instrument` | `Instrument` and the `Universe` that numbers them. |
 | `market` | `Bar`, `Tick`, `FeedStatus`, `MarketEvent`. |
 | `signal` | `Signal`: what a strategy wants (entry, stop, target). Strategies never size or place orders. |

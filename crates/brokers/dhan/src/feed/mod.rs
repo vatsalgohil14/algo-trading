@@ -237,9 +237,11 @@ enum SessionEnd {
 
 impl State {
     fn url(&self) -> String {
+        // The `/` matters: without a path the request line becomes
+        // `GET ?version=2...`, which Dhan rejects with HTTP 400.
         format!(
-            "{}?version=2&token={}&clientId={}&authType=2",
-            self.config.url,
+            "{}/?version=2&token={}&clientId={}&authType=2",
+            self.config.url.trim_end_matches('/'),
             self.config.access_token.expose(),
             self.config.client_id
         )
@@ -522,5 +524,9 @@ mod tests {
         let s = state();
         assert!(!format!("{:?}", s.config).contains("token=t"));
         assert!(s.url().contains("version=2") && s.url().contains("authType=2"));
+        assert!(
+            s.url().contains("/?version=2"),
+            "URL needs a path before the query"
+        );
     }
 }

@@ -18,13 +18,18 @@ path = "src/bin/dhan_history.rs"
 name = "dhan-token"
 path = "src/bin/dhan_token.rs"
 
+[[bin]]
+name = "live-monitor"
+path = "src/bin/live_monitor.rs"
+
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
 dhan = { path = "../../crates/brokers/dhan" }
+indicators.workspace = true
 reqwest.workspace = true
 rust_decimal.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["signal"] }
 sim.workspace = true
 store.workspace = true
 trading-core.workspace = true

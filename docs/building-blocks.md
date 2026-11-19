@@ -14,14 +14,17 @@ flowchart TB
     B --> Engine
     Engine <--> X[sim broker]
     Engine -.later.-> H[Dhan]
+    F[Dhan feed] --> L[live-monitor]
+    L --> D
+    D --> L
 ```
 
 ## Core
 
 | Crate | Job |
 |---|---|
-| `core` | The shared language: prices, bars, orders, positions, time |
-| `indicators` | SMA, EMA, RSI, ATR, VWAP, opening range and more, asked for by name |
+| `core` | The shared language: prices, bars, orders, positions, time, and the candle builder that turns live trades into 1-minute candles |
+| `indicators` | SMA, EMA, RSI, ATR, VWAP, opening range and more, asked for by name. Can also preview values on a forming candle |
 | `strategies` | Turn bars into signals. Home of ORB and a template to copy |
 | `costs` | Brokerage, taxes, fees and slippage |
 | `risk` | Trade size, exposure caps, the daily loss halt |
@@ -49,8 +52,10 @@ flowchart TB
 | `backtester` | Runs a backtest from a config file |
 | `dhan-history` | Downloads 1-minute candles into QuestDB |
 | `dhan-token` | Checks that Dhan login works |
+| `live-monitor` | Live candles and live/closed indicators; see [Live monitor](runbook/live-monitor.md) |
 | `synth-bars` | Loads synthetic bars into QuestDB |
 | `scripts/questdb.sh` | Starts, stops and sets up QuestDB |
+| `scripts/live_monitor.sh` | Loads `.env` and runs `live-monitor` |
 | `scripts/questdb_mcp.py` | Lets Claude query QuestDB |
 
 ## Indicators available

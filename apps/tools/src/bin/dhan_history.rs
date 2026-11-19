@@ -153,7 +153,9 @@ async fn run(args: &Args) -> Result<(), Error> {
         addr: args.qdb.clone(),
         ..StoreConfig::default()
     })?;
-    let open = NaiveTime::from_hms_opt(9, 15, 0).ok_or("bad time")?;
+    // Dhan treats the start as exclusive: asking from 09:15 drops the
+    // 09:15 bar. Start earlier; there are no bars before the open.
+    let open = NaiveTime::from_hms_opt(9, 0, 0).ok_or("bad time")?;
     let close = NaiveTime::from_hms_opt(15, 30, 0).ok_or("bad time")?;
     let range = (args.from.and_time(open), args.to.and_time(close));
 

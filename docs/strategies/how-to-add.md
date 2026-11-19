@@ -65,7 +65,7 @@ scripts/questdb.sh init
 Set `DHAN_CLIENT_ID`, `DHAN_PIN` and `DHAN_TOTP_SECRET` in your shell, never in a tracked file. Tokens are then issued and saved automatically; see the [token runbook](../runbook/dhan-token.md). Then:
 
 ```bash
-cargo run --release -p tools --bin dhan-history -- --symbols-file config/universes/liquid_starter.txt --from 2022-01-01 --to 2026-10-31
+cargo run --release -p tools --bin dhan-history -- --symbols-file config/universes/nifty50.txt --from 2021-12-01 --to 2026-11-18
 ```
 
 ## 5. Run it
@@ -90,9 +90,9 @@ cargo run --release -p backtester -- --config config/backtests/my_strategy.toml 
 
 - Synthetic data says nothing about profit.
 - One good run proves little. Follow the validation list in [orb.md](orb.md#validation): neighbouring settings, out-of-sample periods, different market regimes, doubled slippage, at least 300 trades.
-- `liquid_starter.txt` is chosen from today's large stocks, so results over past years are flattered by survivorship bias.
+- `nifty50.txt` and `liquid_starter.txt` are today's large stocks, so results over past years are flattered by survivorship bias.
 - The simulated broker works from 1-minute bars. It's deliberately pessimistic, but real fills need checking in paper trading.
 
 ## Not built yet
 
-The live and paper trader needs the Dhan adapter, which connects the engine's commands to real orders and the live feed. That comes after the API has been tested with read-only calls.
+The live and paper trader needs the Dhan adapter, which connects the engine's commands to real orders and the live feed. The read-only side works: the [live monitor](../runbook/live-monitor.md) streams live candles and indicators. Orders come next.

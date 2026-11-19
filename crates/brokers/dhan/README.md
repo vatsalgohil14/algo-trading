@@ -30,7 +30,9 @@ triggers, option chain, expired options data, EDIS, 20/200-level depth feeds.
 - **Orders are never retried automatically.** If a place/modify/cancel call fails
   and `err.outcome_unknown()` is true, the order may exist: look it up with
   `get_order_by_correlation_id` before trying again. Always set a correlation ID.
-- **Reads are retried** (GET only) on 5xx, 429 and network errors, with backoff.
+- **Reads are retried** on 5xx, 429 and network errors, with backoff (longer for
+  429). This covers GETs and the read-only data and quote POSTs (candles,
+  quotes); nothing in the order category is ever retried.
 - **Client-side rate limiting** matches Dhan's published limits per category
   (orders 10/s, 250/min, 1000/h, 7000/day; quotes 1/s; data 5/s; others 20/s). If
   a slot would take longer than `max_wait` (5 s), the call fails fast with
@@ -77,12 +79,13 @@ let ack = client.place_super_order(&order).await?;
 ```bash
 cargo run -p dhan --example instruments -- RELIANCE HDFCBANK   # no credentials needed
 cargo run -p dhan --example account_check                      # read-only
-cargo run -p dhan --example live_feed                          # needs Data API plan
+cargo run -p dhan --example live_feed -- data/universe.csv 60  # needs Data API plan
 cargo run -p dhan --example order_updates                      # read-only
 ```
 
 The credential examples read `DHAN_CLIENT_ID` and `DHAN_ACCESS_TOKEN` from the
-environment. None of the examples place orders.
+environment; `live_feed` logs in by itself from `DHAN_PIN` and
+`DHAN_TOTP_SECRET` instead. None of the examples place orders.
 
 ## Verify against a live account before trading
 
@@ -93,9 +96,20 @@ tested against mocks:
    `includeOrder` / `scripList`.
 2. `intraday_candles` sends `interval` as a number (the docs' sample shows a string).
 3. `renew_token` assumes the response has the same shape as token generation.
-4. Feed `ltt` (last trade time) is passed through raw; confirm whether it is UTC
-   epoch or IST-shifted before using it for bar timing.
-5. Order placement needs the machine's static IP whitelisted (`set_static_ip`).
+4. Order placement needs the machine's static IP whitelisted (`set_static_ip`).
+
+## Checked against the live API (2026-11-19)
+
+- Feed `ltt` (last trade time) is IST clock time written as if it were UTC:
+  subtract 5h30m to get real time. Packets keep the raw value.
+- The feed WebSocket needs a path before the query (`wss://api-feed.dhan.co/?...`);
+  without the `/` Dhan answers HTTP 400.
+- Intraday candles treat `fromDate` as exclusive: ask from 09:00 to get the
+  09:15 candle.
+- Since 3 Aug 2026, F&O stocks have candles only until 15:14 (continuous
+  trading ends at 15:15).
+- 50 back-to-back history downloads trip Dhan's DH-904 rate limit even under
+  the published 5/s; the retries handle it.
 
 ## Tests
 

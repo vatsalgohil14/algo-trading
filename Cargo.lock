@@ -2675,6 +2675,7 @@ dependencies = [
  "chrono",
  "clap",
  "dhan",
+ "indicators",
  "reqwest",
  "rust_decimal",
  "sim",

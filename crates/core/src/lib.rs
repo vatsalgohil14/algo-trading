@@ -27,6 +27,7 @@
     )
 )]
 
+pub mod candles;
 pub mod clock;
 mod error;
 pub mod execution;
@@ -40,6 +41,7 @@ pub mod position;
 pub mod signal;
 pub mod time;
 
+pub use candles::{CandleBuilder, TickOutcome};
 pub use clock::{Clock, SimClock, SystemClock};
 pub use error::CoreError;
 pub use execution::{ExecError, Execution, OrderChange, OrderSnapshot, PositionSnapshot};

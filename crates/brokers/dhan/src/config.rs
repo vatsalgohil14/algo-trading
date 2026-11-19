@@ -66,8 +66,8 @@ pub struct DhanConfig {
     /// Total time allowed for one HTTP request (connect + send + response).
     pub request_timeout: Duration,
     pub connect_timeout: Duration,
-    /// Retries for read-only (GET) calls on transient failures. Mutating
-    /// calls are never retried.
+    /// Retries for read-only calls (GETs, data and quote POSTs) on
+    /// transient failures. Mutating calls are never retried.
     pub max_read_retries: u32,
     pub rate_limits: RateLimitConfig,
 }
@@ -88,7 +88,7 @@ impl DhanConfig {
             order_update_url: Self::DEFAULT_ORDER_UPDATE_URL.to_owned(),
             request_timeout: Duration::from_secs(10),
             connect_timeout: Duration::from_secs(5),
-            max_read_retries: 2,
+            max_read_retries: 4,
             rate_limits: RateLimitConfig::default(),
         }
     }

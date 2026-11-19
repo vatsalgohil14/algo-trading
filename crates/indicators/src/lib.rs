@@ -47,7 +47,7 @@ pub mod trend;
 pub mod volatility;
 pub mod volume;
 
-pub use bank::{BankBuilder, Handle, IndicatorBank};
+pub use bank::{BankBuilder, Handle, IndicatorBank, Preview};
 pub use error::IndicatorError;
 pub use registry::{Factory, Registry};
 pub use spec::Spec;
@@ -67,8 +67,21 @@ pub struct BarContext {
     pub session_minute: Option<u16>,
 }
 
+/// Copies an indicator behind a `Box<dyn Indicator>`. Implemented for every
+/// indicator that is `Clone`; used to preview values on a forming bar
+/// without touching the real state.
+pub trait CloneIndicator {
+    fn clone_box(&self) -> Box<dyn Indicator>;
+}
+
+impl<T: Indicator + Clone + 'static> CloneIndicator for T {
+    fn clone_box(&self) -> Box<dyn Indicator> {
+        Box::new(self.clone())
+    }
+}
+
 /// One indicator for one stock.
-pub trait Indicator: Send + Debug {
+pub trait Indicator: Send + Debug + CloneIndicator {
     /// Names of the values this indicator produces. The first is the
     /// default, used when a spec names no output.
     fn outputs(&self) -> &'static [&'static str] {

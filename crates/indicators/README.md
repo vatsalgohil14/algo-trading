@@ -26,9 +26,26 @@ if let Some(v) = bank.get(bar.instrument, ema) { /* ... */ }
 | `orb(n)` | high, low, range | First `n` minutes; unavailable all day if any bar of the window is missing |
 | `prev_day` | high, low, close | Previous session |
 
+## Live values on a forming candle
+
+`bank.preview(&forming_bar)` returns the values as if that bar closed now,
+without changing the bank. It works on a copy of the stock's indicators, so
+calling it on every tick is safe. When the minute ends, `bank.update` with the
+finished bar gives the same values the last preview did, and a backtest gives
+the same values too.
+
+```rust
+let live = bank.preview(&forming)?;   // every tick: for display
+let now = live.get(ema);
+bank.update(&finished)?;              // once per minute: for signals
+```
+
+Use preview values for watching only: they can change until the minute ends.
+
 ## Adding an indicator
 
-1. Implement `Indicator` (`outputs`, `update`, `value`) in the folder that fits:
+1. Implement `Indicator` (`outputs`, `update`, `value`) on a type that is
+   `Clone` (needed for previews), in the folder that fits:
    `trend`, `momentum`, `volatility`, `volume`, `levels`.
 2. Register it in `Registry::builtin` (one line).
 

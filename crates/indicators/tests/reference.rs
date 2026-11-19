@@ -432,7 +432,7 @@ fn custom_indicators_plug_in_by_name() {
     use indicators::{BarContext, Indicator, IndicatorError, Spec};
 
     /// Counts bars: the smallest possible indicator.
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, Clone)]
     struct Count(u64);
     impl Indicator for Count {
         fn update(&mut self, _: &Bar, _: &BarContext) {

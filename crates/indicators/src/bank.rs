@@ -154,6 +154,49 @@ impl IndicatorBank {
         Ok(ctx)
     }
 
+    /// Values as they would be if `bar` closed now, without changing any
+    /// state. Feed it the still-forming bar of the current minute to get
+    /// live indicator values; [`update`](Self::update) with the finished bar
+    /// later gives the closed-bar values, exactly as in a backtest.
+    ///
+    /// Rejected like `update` for an unknown stock or a bar not later than
+    /// the last closed one.
+    pub fn preview(&self, bar: &Bar) -> Result<Preview, IndicatorError> {
+        let i = bar.instrument.index();
+        let last = self
+            .last
+            .get(i)
+            .ok_or(IndicatorError::UnknownInstrument(bar.instrument))?;
+        let new_session = match *last {
+            Some((ts, _)) if bar.ts <= ts => {
+                return Err(IndicatorError::OutOfOrder {
+                    instrument: bar.instrument,
+                    ts: bar.ts,
+                    last: ts,
+                });
+            }
+            Some((_, last_day)) => bar.ts.ist_day() != last_day,
+            None => true,
+        };
+        let ctx = BarContext {
+            new_session,
+            session_minute: self.hours.session_minute(bar.ts),
+        };
+        let start = i * self.per_stock;
+        let indicators = self
+            .indicators
+            .get(start..start + self.per_stock)
+            .unwrap_or(&[])
+            .iter()
+            .map(|ind| {
+                let mut copy = ind.clone_box();
+                copy.update(bar, &ctx);
+                copy
+            })
+            .collect();
+        Ok(Preview { indicators })
+    }
+
     /// Current value, or `None` while warming up or for an unknown stock.
     #[inline]
     pub fn get(&self, instrument: InstrumentId, handle: Handle) -> Option<f64> {
@@ -168,6 +211,22 @@ impl IndicatorBank {
     /// Canonical specs of the distinct indicators computed per stock.
     pub fn specs(&self) -> impl Iterator<Item = String> + '_ {
         self.specs.iter().map(Spec::to_string)
+    }
+}
+
+/// Indicator values for one stock as if a forming bar had closed. Made by
+/// [`IndicatorBank::preview`]; read it with the same handles as the bank.
+#[derive(Debug)]
+pub struct Preview {
+    indicators: Vec<Box<dyn Indicator>>,
+}
+
+impl Preview {
+    #[inline]
+    pub fn get(&self, handle: Handle) -> Option<f64> {
+        self.indicators
+            .get(usize::from(handle.slot))?
+            .value(usize::from(handle.output))
     }
 }
 
@@ -192,6 +251,48 @@ mod tests {
     fn open() -> Timestamp {
         let date = chrono::NaiveDate::from_ymd_opt(2025, 1, 6).unwrap();
         MarketHours::NSE_EQUITY.open_at(date).unwrap()
+    }
+
+    #[test]
+    fn preview_matches_update_and_changes_nothing() {
+        let mut b = BankBuilder::new(Registry::builtin());
+        let ema = b.require("ema(3)").unwrap();
+        let vwap = b.require("vwap").unwrap();
+        let mut bank = b.build(2).unwrap();
+        let t0 = open();
+        for (m, close) in [(0, 10_000), (1, 10_100), (2, 10_200)] {
+            bank.update(&bar(0, t0.plus_minutes(m), close)).unwrap();
+        }
+        let before = (
+            bank.get(InstrumentId(0), ema),
+            bank.get(InstrumentId(0), vwap),
+        );
+
+        let forming = bar(0, t0.plus_minutes(3), 10_600);
+        let live = bank.preview(&forming).unwrap();
+        // The bank itself is untouched.
+        assert_eq!(
+            (
+                bank.get(InstrumentId(0), ema),
+                bank.get(InstrumentId(0), vwap)
+            ),
+            before
+        );
+        // Other stocks are untouched too.
+        assert_eq!(bank.get(InstrumentId(1), ema), None);
+
+        // Previewing repeatedly as the bar changes does not accumulate.
+        let again = bank.preview(&forming).unwrap();
+        assert_eq!(again.get(ema), live.get(ema));
+
+        bank.update(&forming).unwrap();
+        assert_eq!(bank.get(InstrumentId(0), ema), live.get(ema));
+        assert_eq!(bank.get(InstrumentId(0), vwap), live.get(vwap));
+        assert_ne!(live.get(ema), before.0);
+
+        // Same rules as update: no bars at or before the last closed one.
+        assert!(bank.preview(&forming).is_err());
+        assert!(bank.preview(&bar(9, t0.plus_minutes(5), 10_000)).is_err());
     }
 
     #[test]
