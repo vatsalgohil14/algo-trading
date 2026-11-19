@@ -17,6 +17,7 @@
 - [x] Nifty 50 universe and real 1-minute history from December 2021
 - [x] Live feed, live candles, and live and closed indicators ([Live monitor](runbook/live-monitor.md))
 - [x] Recording 5-level depth and indicator values in QuestDB, joinable by time
+- [x] History checked; mock-trading days removed ([Data quality](data-quality.md))
 
 ## Next
 
@@ -41,5 +42,6 @@
 - Dhan's own intraday auto square-off time after that change is not yet checked. Check it before trading live.
 - The live feed is not yet connected to the engine, so strategies don't run on live data yet.
 - The Nifty 50 list is today's, so long backtests on it carry survivorship bias.
+- History is not adjusted for bonuses, splits or demergers; see [Data quality](data-quality.md).
 - ORB takes no new trades after a mid-day restart.
 - Whether ORB has any edge is still unknown. If it fails the tests, the right answer is not to trade it.

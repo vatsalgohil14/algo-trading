@@ -309,7 +309,10 @@ impl Monitor {
             .collect::<Result<_, Error>>()?;
         for (instrument, sid) in ids {
             for row in client.bars(BarTable::OneMinute, sid, from, today)? {
-                if let Some(bar) = row_to_bar(instrument, &row)
+                // Same session filter as the backtester: older history has
+                // pre-open and after-close candles that are not trading.
+                if let Some(bar) =
+                    row_to_bar(instrument, &row).filter(|b| MarketHours::NSE_EQUITY.is_open(b.ts))
                     && self.bank.update(&bar).is_ok()
                 {
                     fed += 1;

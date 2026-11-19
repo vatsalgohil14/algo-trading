@@ -62,6 +62,7 @@ nav:
       - Risk and costs: risk-and-costs.md
       - "Strategy: ORB": strategies/orb.md
       - Backtesting: backtesting.md
+      - Data quality: data-quality.md
       - Add a strategy: strategies/how-to-add.md
   - Run it:
       - Local setup: runbook/local-setup.md

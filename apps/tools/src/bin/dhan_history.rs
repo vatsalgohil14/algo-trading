@@ -9,6 +9,9 @@
 //!     --from 2022-01-01 --to 2026-10-31
 //! ```
 //!
+//! Only candles from the continuous session (09:15-15:29 IST) are stored,
+//! and known mock-trading days are skipped; see [`keep`].
+//!
 //! Safe to re-run: `bars_1m` ignores rows it already has. One stock failing
 //! does not stop the others; failures are listed at the end and the tool
 //! exits with an error.
@@ -25,6 +28,7 @@ use dhan::{Candle, CandleInterval, Decimal, DhanClient, ExchangeSegment, Intrada
 use rust_decimal::prelude::ToPrimitive;
 use store::rows::Bar as BarRow;
 use store::{Record, Store, StoreConfig};
+use trading_core::{MarketHours, Timestamp};
 
 type Error = Box<dyn std::error::Error>;
 
@@ -78,6 +82,26 @@ fn parse_symbols(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// Saturdays in Dhan's history that hold NSE mock-trading data, not real
+/// trades: prices swing 15-22% and reopen far away on Monday. Found on
+/// 2026-11-19 by checking every weekend day against the days around it; the
+/// other weekend days (Muhurat, budget and special live sessions) are real.
+const MOCK_TRADING_DAYS: [(i32, u32, u32); 3] = [(2022, 2, 5), (2022, 4, 9), (2022, 4, 30)];
+
+/// Whether a candle starting at `epoch` (UTC seconds) belongs in `bars_1m`:
+/// inside the continuous session (09:15-15:29 IST) and not on a mock day.
+/// Dhan also sends a 09:07 pre-open candle (until 2023) and flat zero-volume
+/// candles after 15:30 (until 2024); neither is continuous trading.
+fn keep(epoch: i64) -> bool {
+    let ts = Timestamp::from_secs(epoch);
+    let mock = ts.ist_date().is_some_and(|d| {
+        MOCK_TRADING_DAYS
+            .iter()
+            .any(|&(y, m, day)| NaiveDate::from_ymd_opt(y, m, day) == Some(d))
+    });
+    MarketHours::NSE_EQUITY.is_open(ts) && !mock
+}
+
 fn to_f64(d: Decimal) -> Option<f64> {
     d.to_f64().filter(|v| v.is_finite())
 }
@@ -125,7 +149,7 @@ async fn download(
     let candles = client.intraday_candles_range(&request).await?;
     let name: Arc<str> = Arc::from(symbol);
     let mut stored = 0;
-    for candle in &candles {
+    for candle in candles.iter().filter(|c| keep(c.timestamp)) {
         let row = to_row(candle, &name, security_id)
             .ok_or_else(|| format!("candle at {} cannot be stored", candle.timestamp))?;
         store.write(Record::Bar1m(row))?;
@@ -217,6 +241,25 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    fn epoch(y: i32, m: u32, d: u32, h: u32, min: u32) -> i64 {
+        let ist = Timestamp::from_ist(
+            NaiveDate::from_ymd_opt(y, m, d).unwrap(),
+            NaiveTime::from_hms_opt(h, min, 0).unwrap(),
+        )
+        .unwrap();
+        ist.micros() / 1_000_000
+    }
+
+    #[test]
+    fn keeps_only_real_session_candles() {
+        assert!(keep(epoch(2025, 6, 2, 9, 15)));
+        assert!(keep(epoch(2025, 6, 2, 15, 29)));
+        assert!(!keep(epoch(2023, 6, 2, 9, 7))); // pre-open candle
+        assert!(!keep(epoch(2024, 6, 3, 15, 30))); // post-close filler
+        assert!(!keep(epoch(2022, 4, 9, 11, 30))); // mock trading
+        assert!(keep(epoch(2025, 2, 1, 11, 30))); // budget Saturday, real
+    }
 
     fn d(s: &str) -> Decimal {
         Decimal::from_str(s).unwrap()
