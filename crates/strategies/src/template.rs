@@ -6,8 +6,9 @@
 
 use indicators::{BankBuilder, Handle};
 use serde::{Deserialize, Serialize};
-use trading_core::{Bar, Intent, Signal, StrategyId, TickRounding};
+use trading_core::{Bar, Signal, StrategyId};
 
+use crate::kit::{Daily, Signals, entry_allowed};
 use crate::{Context, Strategy, StrategyError};
 
 /// Step 1: settings, with defaults. Unknown fields in a config file are errors.
@@ -29,11 +30,10 @@ impl Default for TemplateConfig {
     }
 }
 
-/// Step 2: what is remembered per stock.
+/// Step 2: what is remembered per stock. Starts fresh every morning.
 #[derive(Debug, Clone, Copy, Default)]
-struct StockState {
-    day: i64,
-    traded_today: bool,
+struct Today {
+    traded: bool,
     was_above: Option<bool>,
 }
 
@@ -42,7 +42,8 @@ pub struct Template {
     id: StrategyId,
     config: TemplateConfig,
     sma: Handle,
-    stocks: Vec<StockState>,
+    days: Daily<Today>,
+    signals: Signals,
 }
 
 impl Template {
@@ -64,7 +65,8 @@ impl Template {
             sma: bank.require(&format!("sma({})", config.sma_period))?,
             id,
             config,
-            stocks: vec![StockState::default(); instruments],
+            days: Daily::new(instruments),
+            signals: Signals::new(id),
         })
     }
 }
@@ -82,46 +84,85 @@ impl Strategy for Template {
     /// or place orders. The stop and target sit at the broker, and the
     /// engine squares off at the end of the day.
     fn on_bar(&mut self, bar: &Bar, ctx: &Context<'_>, out: &mut Vec<Signal>) {
-        let Some(state) = self.stocks.get_mut(bar.instrument.index()) else {
+        let Some(today) = self.days.today(bar) else {
             return;
         };
-        let today = bar.ts.ist_day();
-        if state.day != today {
-            *state = StockState {
-                day: today,
-                ..StockState::default()
-            };
-        }
         let Some(sma) = ctx.bank.get(bar.instrument, self.sma) else {
             return; // still warming up
         };
         let above = bar.close.as_f64() > sma;
-        let crossed_up = state.was_above == Some(false) && above;
-        state.was_above = Some(above);
-
-        if !crossed_up || state.traded_today || !ctx.position.is_flat() {
+        let crossed_up = today.was_above == Some(false) && above;
+        today.was_above = Some(above);
+        // The shared gate checks feed, tradability, entry time and position.
+        if !crossed_up || today.traded || entry_allowed(bar, ctx).is_err() {
             return;
         }
-        if !ctx.feed_ok || !ctx.tradable || !ctx.hours.entries_allowed(bar.ts) {
-            return;
-        }
-        let tick = ctx.instrument.tick_size;
         let (Some(stop), Some(target)) = (
             bar.close.offset_pct(-self.config.stop_pct),
             bar.close.offset_pct(self.config.target_pct),
         ) else {
             return;
         };
-        state.traded_today = true;
-        out.push(Signal {
-            strategy: self.id,
-            instrument: bar.instrument,
-            ts: bar.ts.plus_minutes(1),
-            intent: Intent::EnterLong,
-            entry: None, // at market
-            stop: Some(stop.round_to_tick(tick, TickRounding::Down)),
-            target: Some(target.round_to_tick(tick, TickRounding::Nearest)),
-            reason: "template_long", // names the setup in reports and scores
-        });
+        // Signals rounds to the tick and acts from the next minute;
+        // `reason` names the setup in reports.
+        if let Some(signal) = self
+            .signals
+            .enter_long(bar, ctx, stop, Some(target), "template_long")
+        {
+            today.traded = true;
+            out.push(signal);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use trading_core::{Intent, Price};
+
+    use crate::testing::{Bench, day};
+
+    fn bench() -> Bench {
+        let mut b = Bench::from_registry("template", json!({"sma_period": 3}), 1).unwrap();
+        b.flat_day(0, day(2025, 1, 6), 100.0);
+        b
+    }
+
+    #[test]
+    fn enters_once_on_a_cross_above_the_average() {
+        let mut b = bench();
+        let d = day(2025, 1, 7);
+        assert!(b.bar(0, d, 0, [99.0, 99.0, 98.0, 98.0], 1000).is_empty()); // below
+        let out = b.bar(0, d, 1, [98.0, 103.0, 98.0, 103.0], 1000); // crosses up
+        assert_eq!(out.len(), 1);
+        let s = out[0];
+        assert_eq!(s.intent, Intent::EnterLong);
+        // 0.5% stop below 103 is 102.485, rounded down to 102.45.
+        assert_eq!(s.stop, Some(Price::from_paise(10_245)));
+        assert_eq!(s.reason, "template_long");
+        // Down and up again the same day: no second trade.
+        b.bar(0, d, 2, [103.0, 103.0, 90.0, 90.0], 1000);
+        assert!(b.bar(0, d, 3, [90.0, 120.0, 90.0, 120.0], 1000).is_empty());
+    }
+
+    #[test]
+    fn respects_the_shared_gate() {
+        let mut b = bench();
+        let d = day(2025, 1, 7);
+        b.feed_ok = false;
+        b.bar(0, d, 0, [99.0, 99.0, 98.0, 98.0], 1000);
+        assert!(b.bar(0, d, 1, [98.0, 103.0, 98.0, 103.0], 1000).is_empty());
+    }
+
+    #[test]
+    fn no_entries_after_the_cut_off() {
+        let mut b = bench();
+        let d = day(2025, 1, 7);
+        b.bar(0, d, 340, [99.0, 99.0, 98.0, 98.0], 1000);
+        // 14:56: after the 14:45 last entry.
+        assert!(
+            b.bar(0, d, 341, [98.0, 103.0, 98.0, 103.0], 1000)
+                .is_empty()
+        );
     }
 }

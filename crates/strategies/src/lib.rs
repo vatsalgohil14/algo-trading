@@ -28,13 +28,15 @@
 )]
 
 mod error;
+pub mod kit;
 pub mod orb;
 mod registry;
 mod set;
 pub mod template;
+pub mod testing;
 
 pub use error::StrategyError;
-pub use registry::build;
+pub use registry::{Factory, Registry, build};
 pub use set::StrategySet;
 
 use std::fmt::Debug;

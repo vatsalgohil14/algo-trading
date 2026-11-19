@@ -41,7 +41,7 @@ Neither is continuous trading. They are still in the database from the first dow
 
 ## Known, not fixed yet
 
-- **Not adjusted for corporate actions.** Bonuses, splits and demergers show up as price jumps, for example BSE on 21 Mar 2022 (937 → 300) and TMPV on 14 Oct 2025 (665 → 400, the Tata Motors demerger). Indicators that span such a date (moving averages, ATR, previous-day levels) are wrong around it. This needs adjustment factors per stock and date.
+- **Adjusted for corporate actions only in part.** Dhan adjusts most past prices for later splits and bonuses: RELIANCE shows about ₹1,090 and NESTLEIND about ₹935 in February 2022, well below what they traded at then. Some actions still show as price jumps, for example BSE on 21 Mar 2022 (937 → 300) and TMPV on 14 Oct 2025 (665 → 400, the Tata Motors demerger). Indicators that span such a date (moving averages, ATR, previous-day levels) are wrong around it. Adjusted prices also shift price filters: a stock can pass a ₹5,000 cap in the past only because of a later split. Fixing this needs a list of corporate actions to check each stock against.
 - **Flat zero-volume candles inside the session.** 20,849 of them, mostly at 15:29 in 2022. They are filler, and they pull volume averages down slightly.
 - **One invalid candle.** HINDUNILVR at 15:29 on 22 Apr 2025 closes below its own low. Readers reject candles that fail validation, so it is never used.
 - **Short history.** JIOFIN starts on 21 Aug 2023, so it has about 800 days against about 1,236 for the others.

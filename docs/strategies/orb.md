@@ -1,8 +1,12 @@
 # ORB v1: Opening Range Breakout
 
-Status: implemented in `crates/strategies/src/orb` (rules below); not yet
-backtested on real data. Treat it as a hypothesis until it passes the
-checks under [Validation](#validation).
+Status: implemented in `crates/strategies/src/orb` (rules below).
+**Failed its first real backtest** (Nifty 50, Jan 2022 to Oct 2026, with
+costs): 6,444 trades, profit factor 0.52, −0.158R per trade, profitable in
+2 of 58 months. It loses even before costs (₹−76k gross), and so does every
+combination of 10/15/20/30-minute ranges and 1.5/2/3R targets. Most of the
+loss comes from the failed-breakout exit: breakouts usually reverse. Not to
+be traded as it stands; see [Validation](#validation).
 
 Settings named in `code` are fields of `OrbConfig`; defaults are shown.
 

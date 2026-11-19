@@ -18,10 +18,11 @@
 - [x] Live feed, live candles, and live and closed indicators ([Live monitor](runbook/live-monitor.md))
 - [x] Recording 5-level depth and indicator values in QuestDB, joinable by time
 - [x] History checked; mock-trading days removed ([Data quality](data-quality.md))
+- [x] First real ORB backtest: fails before costs, at every neighbouring setting
+- [x] Shared strategy base: daily state, entry gate, signal builder, test bench, registry ([Add a strategy](strategies/how-to-add.md))
 
 ## Next
 
-- [ ] First real ORB backtest
 - [ ] Parameter sweeps, walk-forward and random-entry tests
 - [ ] A stock list free of survivorship bias
 - [ ] Daily tradable list: surveillance, corporate actions, real leverage
@@ -44,4 +45,4 @@
 - The Nifty 50 list is today's, so long backtests on it carry survivorship bias.
 - History is not adjusted for bonuses, splits or demergers; see [Data quality](data-quality.md).
 - ORB takes no new trades after a mid-day restart.
-- Whether ORB has any edge is still unknown. If it fails the tests, the right answer is not to trade it.
+- ORB failed on 2022–2026 Nifty 50 data: profit factor 0.52, negative even before costs, and every neighbouring setting also loses. Not to be traded as it stands.

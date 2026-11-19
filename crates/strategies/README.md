@@ -18,18 +18,25 @@ set.on_bar(&bar, |strategy| Context { /* position of `strategy`, feed health, ..
 set.on_minute_end(close, &mut signals);
 ```
 
-| Strategy | Rules |
-|---|---|
-| `orb` | [docs/strategies/orb.md](../../docs/strategies/orb.md) |
+| Strategy | Rules | Status |
+|---|---|---|
+| `orb` | [docs/strategies/orb.md](../../docs/strategies/orb.md) | Failed its first real backtest |
+| `template` | `src/template.rs` | Example to copy; not for trading |
 
 ## Writing a strategy
 
+Start from `src/template.rs`; the full guide is [docs/strategies/how-to-add.md](../../docs/strategies/how-to-add.md).
+
 1. Implement `Strategy` (`id`, `name`, `on_bar`).
-   - Keep per-stock state in a `Vec` indexed by `InstrumentId`.
 2. Ask for indicators by name in the constructor (`BankBuilder::require`). Read them in `on_bar` through `ctx.bank`.
-3. Work out the strategy's state from `ctx.position`, never from the signals it sent. Orders can be rejected, fill late or not at all.
-4. Don't open trades when `ctx.feed_ok` or `ctx.tradable` is false.
-5. Make settings a `serde` struct with defaults and a `validate()`. A bad config must stop start-up.
+3. Use the kit (`kit`):
+   - `Daily<T>` for per-stock state that resets each morning;
+   - `entry_allowed(bar, ctx)` before every entry: feed healthy, stock tradable, before the entry cut-off, flat;
+   - `Signals` to build entries, exits and stop moves on the tick grid, acted on from the next minute.
+4. Work out the strategy's state from `ctx.position`, never from the signals it sent. Orders can be rejected, fill late or not at all.
+5. Make settings a `serde` struct with defaults, and reject bad values in `new`. A bad config must stop start-up.
+6. Register it with one line in `Registry::builtin`: `r.add("name", MyStrategy::new)`.
+7. Test it with `testing::Bench`, which builds it as a config would, feeds bars and validates every signal.
 
 Tests: `src/orb/tests.rs` checks each rule bar by bar. `tests/orb_synthetic.rs` runs six months × 40 synthetic stocks and checks these hold on every bar:
 - signals are valid;
