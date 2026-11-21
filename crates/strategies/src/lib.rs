@@ -29,7 +29,6 @@
 
 mod error;
 pub mod kit;
-pub mod orb;
 mod registry;
 mod set;
 pub mod template;
@@ -91,7 +90,7 @@ pub struct Context<'a> {
 pub trait Strategy: Send + Debug {
     fn id(&self) -> StrategyId;
 
-    /// Short name for logs and reports, e.g. `"orb"`.
+    /// Short name for logs and reports, e.g. `"template"`.
     fn name(&self) -> &'static str;
 
     /// Called with each completed 1-minute bar of a stock this strategy

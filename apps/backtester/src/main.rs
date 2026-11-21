@@ -1,7 +1,7 @@
 //! Runs a backtest from a config file.
 //!
 //! ```bash
-//! cargo run --release -p backtester -- --config config/backtests/orb_synthetic.toml
+//! cargo run --release -p backtester -- --config config/backtests/template_synthetic.toml
 //! ```
 
 use std::path::Path;

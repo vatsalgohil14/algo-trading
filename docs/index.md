@@ -35,7 +35,7 @@
 | **Trade size** | ₹30,000 to ₹50,000 of exposure |
 | **Risk limits** | ₹500 per trade, ₹10,000 per day |
 | **Data** | 1-minute bars in QuestDB |
-| **First strategy** | [Opening Range Breakout](strategies/orb.md) |
+| **Strategies** | None trading yet; ideas are screened first ([Research](research.md)) |
 
 ## Four ideas behind the design
 

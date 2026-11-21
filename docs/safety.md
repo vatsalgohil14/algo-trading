@@ -15,7 +15,7 @@ Trading systems fail in the gaps between "sent" and "confirmed". Here is what th
 | **One stock's bars stop arriving** | Square-off runs from the clock, so it still gets closed |
 | **We lose ₹10,000 in a day** | No new trades, and everything is closed |
 | **The program restarts mid-day** | Positions and today's P&L are rebuilt from the broker, so the loss limit can't reset. Open trades keep their broker stops and close at square-off |
-| **A bad bar arrives** | Refused without changing any state. Missing opening bars mean no ORB trade that day |
+| **A bad bar arrives** | Refused without changing any state |
 | **The login token expires** | A new one is issued automatically. A wrong PIN stops immediately, to avoid locking the account |
 | **A config has a typo** | Start-up fails. It won't misbehave at 09:30 |
 

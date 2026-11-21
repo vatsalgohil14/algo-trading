@@ -1,5 +1,6 @@
 //! A minimal strategy to copy when writing a new one: long when the close
-//! crosses above its moving average, with a fixed percentage stop and target.
+//! crosses above its moving average (and, with `allow_short`, short when it
+//! crosses below), with a fixed percentage stop and target.
 //!
 //! It is an example of the shape of a strategy, not an idea worth trading.
 //! See `docs/strategies/how-to-add.md`.
@@ -18,6 +19,8 @@ pub struct TemplateConfig {
     pub sma_period: u16,
     pub stop_pct: f64,
     pub target_pct: f64,
+    /// Also sell short on a cross below the average.
+    pub allow_short: bool,
 }
 
 impl Default for TemplateConfig {
@@ -26,6 +29,7 @@ impl Default for TemplateConfig {
             sma_period: 20,
             stop_pct: 0.5,
             target_pct: 1.5,
+            allow_short: false,
         }
     }
 }
@@ -92,23 +96,33 @@ impl Strategy for Template {
         };
         let above = bar.close.as_f64() > sma;
         let crossed_up = today.was_above == Some(false) && above;
+        let crossed_down = today.was_above == Some(true) && !above && self.config.allow_short;
         today.was_above = Some(above);
         // The shared gate checks feed, tradability, entry time and position.
-        if !crossed_up || today.traded || entry_allowed(bar, ctx).is_err() {
+        if !(crossed_up || crossed_down) || today.traded || entry_allowed(bar, ctx).is_err() {
             return;
         }
+        let (stop_pct, target_pct) = if crossed_up {
+            (-self.config.stop_pct, self.config.target_pct)
+        } else {
+            (self.config.stop_pct, -self.config.target_pct)
+        };
         let (Some(stop), Some(target)) = (
-            bar.close.offset_pct(-self.config.stop_pct),
-            bar.close.offset_pct(self.config.target_pct),
+            bar.close.offset_pct(stop_pct),
+            bar.close.offset_pct(target_pct),
         ) else {
             return;
         };
         // Signals rounds to the tick and acts from the next minute;
         // `reason` names the setup in reports.
-        if let Some(signal) = self
-            .signals
-            .enter_long(bar, ctx, stop, Some(target), "template_long")
-        {
+        let signal = if crossed_up {
+            self.signals
+                .enter_long(bar, ctx, stop, Some(target), "template_long")
+        } else {
+            self.signals
+                .enter_short(bar, ctx, stop, Some(target), "template_short")
+        };
+        if let Some(signal) = signal {
             today.traded = true;
             out.push(signal);
         }
@@ -143,6 +157,27 @@ mod tests {
         // Down and up again the same day: no second trade.
         b.bar(0, d, 2, [103.0, 103.0, 90.0, 90.0], 1000);
         assert!(b.bar(0, d, 3, [90.0, 120.0, 90.0, 120.0], 1000).is_empty());
+    }
+
+    #[test]
+    fn shorts_only_when_allowed() {
+        let d = day(2025, 1, 7);
+        // Default: no shorts.
+        let mut b = bench();
+        b.bar(0, d, 0, [101.0, 101.0, 101.0, 101.0], 1000); // above
+        assert!(b.bar(0, d, 1, [101.0, 101.0, 97.0, 97.0], 1000).is_empty());
+
+        let mut b =
+            Bench::from_registry("template", json!({"sma_period": 3, "allow_short": true}), 1)
+                .unwrap();
+        b.flat_day(0, day(2025, 1, 6), 100.0);
+        b.bar(0, d, 0, [101.0, 101.0, 101.0, 101.0], 1000);
+        let out = b.bar(0, d, 1, [101.0, 101.0, 97.0, 97.0], 1000);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].intent, Intent::EnterShort);
+        assert_eq!(out[0].reason, "template_short");
+        // Stop 0.5% above 97 (97.485) rounds up to 97.50.
+        assert_eq!(out[0].stop, Some(Price::from_paise(9_750)));
     }
 
     #[test]

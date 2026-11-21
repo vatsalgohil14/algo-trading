@@ -25,7 +25,7 @@ flowchart TB
 |---|---|
 | `core` | The shared language: prices, bars, orders, positions, time, and the candle builder that turns live trades into 1-minute candles |
 | `indicators` | SMA, EMA, RSI, ATR, VWAP, opening range and more, asked for by name. Can also preview values on a forming candle |
-| `strategies` | Turn bars into signals. Home of ORB, a template to copy, the shared kit (daily state, entry gate, signal builder), a test bench and the strategy registry |
+| `strategies` | Turn bars into signals. Home of a template to copy, the shared kit (daily state, entry gate, signal builder), a test bench and the strategy registry |
 | `costs` | Brokerage, taxes, fees and slippage |
 | `risk` | Trade size, exposure caps, the daily loss halt |
 | `oms` | Tracks every order and position |

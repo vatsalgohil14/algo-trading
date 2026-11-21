@@ -323,7 +323,7 @@ impl Monitor {
     }
 
     /// Today's finished candles so far, from Dhan, so a mid-day start
-    /// still has correct VWAP, ORB and moving averages.
+    /// still has correct VWAP, opening range and moving averages.
     async fn catch_up(&mut self, client: &DhanClient) -> Result<u64, Error> {
         let now = now();
         let current_minute = now.floor_minute();

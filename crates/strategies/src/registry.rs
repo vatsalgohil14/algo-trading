@@ -6,7 +6,6 @@ use indicators::BankBuilder;
 use serde::de::DeserializeOwned;
 use trading_core::StrategyId;
 
-use crate::orb::Orb;
 use crate::template::Template;
 use crate::{Strategy, StrategyError};
 
@@ -59,12 +58,6 @@ impl Registry {
     /// To add a strategy, add one line here.
     pub fn builtin() -> Self {
         let mut r = Self::empty();
-        r.add("orb", Orb::new);
-        r.retire(
-            "orb",
-            "failed its first real backtest (Nifty 50, 2022-2026): profit factor 0.52, \
-             losing even before costs at every nearby setting; see docs/strategies/orb.md",
-        );
         r.add("template", Template::new);
         r
     }
@@ -144,17 +137,34 @@ mod tests {
     fn builds_by_name_and_checks_settings() {
         let mut b = BankBuilder::new(Registry::builtin());
         let id = StrategyId(0);
-        let orb = build("orb", id, serde_json::json!({"target_r": 3.0}), &mut b, 2).unwrap();
-        assert_eq!(orb.name(), "orb");
+        let t = build(
+            "template",
+            id,
+            serde_json::json!({"sma_period": 5}),
+            &mut b,
+            2,
+        )
+        .unwrap();
+        assert_eq!(t.name(), "template");
         assert!(matches!(
             build("nope", id, serde_json::json!({}), &mut b, 2),
             Err(StrategyError::UnknownStrategy(_))
         ));
-        assert!(build("orb", id, serde_json::json!({"typo": 1}), &mut b, 2).is_err());
-        assert!(build("orb", id, serde_json::json!({"target_r": -1}), &mut b, 2).is_err());
-        let r = super::Registry::builtin();
-        assert_eq!(r.names().collect::<Vec<_>>(), ["orb", "template"]);
-        assert!(r.retired("orb").is_some());
+        assert!(build("template", id, serde_json::json!({"typo": 1}), &mut b, 2).is_err());
+        assert!(
+            build(
+                "template",
+                id,
+                serde_json::json!({"stop_pct": -1}),
+                &mut b,
+                2
+            )
+            .is_err()
+        );
+        let mut r = super::Registry::builtin();
+        assert_eq!(r.names().collect::<Vec<_>>(), ["template"]);
         assert!(r.retired("template").is_none());
+        r.retire("template", "example");
+        assert_eq!(r.retired("template"), Some("example"));
     }
 }

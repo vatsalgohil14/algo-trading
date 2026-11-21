@@ -16,13 +16,13 @@ flowchart LR
 
 ## An example
 
-A ₹500 stock has an opening range of ₹498 to ₹502, and it just closed at ₹502.50 on heavy volume.
+A ₹500 stock has been trading between ₹498 and ₹502, and it just closed at ₹502.50 on heavy volume.
 
 **1. Indicators update.** Each indicator is computed once per stock, however many strategies use it. A bar takes about 20 nanoseconds for eight indicators.
 
-**2. The strategy decides.** ORB sees a valid breakout and emits a signal: *go long at ₹503.05, stop ₹498, target ₹513.15*. It says what it wants, never how much.
+**2. The strategy decides.** A breakout strategy sees a valid breakout and emits a signal: *go long at ₹503.05, stop ₹498, target ₹513.15*. It says what it wants, never how much.
 
-**3. Breakouts are ranked.** ORB waits until every stock's bar for that minute is in. If there are more breakouts than slots, the strongest by relative volume go first.
+**3. Setups can be ranked.** A strategy that compares stocks waits until every stock's bar for that minute is in (`on_minute_end`). If there are more setups than slots, it sends the strongest first.
 
 **4. The risk manager sizes it.** It picks 60 shares (₹30,183), checks the most it could lose (₹303) and that the reward is worth the cost. It also checks the exposure and margin limits. [How sizing works](risk-and-costs.md).
 

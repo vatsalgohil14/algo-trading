@@ -60,7 +60,6 @@ nav:
       - When things go wrong: safety.md
   - Trading:
       - Risk and costs: risk-and-costs.md
-      - "Strategy: ORB": strategies/orb.md
       - Backtesting: backtesting.md
       - Data quality: data-quality.md
       - Research: research.md

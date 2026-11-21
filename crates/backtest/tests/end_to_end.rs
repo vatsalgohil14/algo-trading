@@ -19,12 +19,12 @@ use sim::synthetic::sample_universe;
 use trading_core::{Exchange, Money, Universe};
 
 fn backtest(faults: Faults, slippage_multiplier: f64) -> BacktestResult {
-    let orb = StrategySpec {
-        name: "orb".into(),
+    let template = StrategySpec {
+        name: "template".into(),
         stocks: None,
-        params: serde_json::json!({"min_turnover_cr": 5.0}),
+        params: serde_json::json!({"allow_short": true}),
     };
-    backtest_with(vec![orb], faults, slippage_multiplier)
+    backtest_with(vec![template], faults, slippage_multiplier)
 }
 
 fn backtest_with(
@@ -147,15 +147,16 @@ fn a_second_strategy_plugs_in_by_name() {
     );
     books_agree(&alone);
 
-    let orb = StrategySpec {
-        params: serde_json::json!({"min_turnover_cr": 5.0}),
-        ..spec("orb")
+    // A second, differently configured instance on the same stocks.
+    let shorts = StrategySpec {
+        params: serde_json::json!({"sma_period": 10, "allow_short": true}),
+        ..spec("template")
     };
-    let both = backtest_with(vec![orb, spec("template")], Faults::default(), 1.0);
+    let both = backtest_with(vec![shorts, spec("template")], Faults::default(), 1.0);
     books_agree(&both);
     assert_eq!(both.auto_square_offs, 0);
     assert!(both.trades.iter().any(|t| t.setup == "template_long"));
-    assert!(both.trades.iter().any(|t| t.setup.starts_with("orb_")));
+    assert!(both.trades.iter().any(|t| t.setup == "template_short"));
 }
 
 #[test]

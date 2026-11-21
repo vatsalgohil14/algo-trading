@@ -4,11 +4,11 @@ Strategies turn bars and indicator values into `Signal`s: enter long or short wi
 
 ```rust
 let mut builder = BankBuilder::new(Registry::builtin());
-let orb = Orb::new(StrategyId(0), OrbConfig::default(), &mut builder, universe.len())?;
+let template = Template::new(StrategyId(0), TemplateConfig::default(), &mut builder, universe.len())?;
 let mut bank = builder.build(universe.len())?;
 
 let mut set = StrategySet::new(universe.len());
-set.add(Box::new(orb), &stocks_for_orb)?;      // which stocks each strategy trades
+set.add(Box::new(template), &stocks)?;          // which stocks each strategy trades
 
 // per bar:
 let session = bank.update(&bar)?;
@@ -20,8 +20,9 @@ set.on_minute_end(close, &mut signals);
 
 | Strategy | Rules | Status |
 |---|---|---|
-| `orb` | [docs/strategies/orb.md](../../docs/strategies/orb.md) | Retired: failed its first real backtest. Kept as the engine's test example |
-| `template` | `src/template.rs` | Example to copy; not for trading |
+| `template` | `src/template.rs` | Example to copy and the engine's test strategy; not for trading |
+
+No trading strategy yet. Opening Range Breakout was built first, failed its real backtest and was deleted; it is in git history before November 2026. Ideas are screened first with the research tools ([docs/research.md](../../docs/research.md)).
 
 ## Writing a strategy
 
@@ -38,8 +39,4 @@ Start from `src/template.rs`; the full guide is [docs/strategies/how-to-add.md](
 6. Register it with one line in `Registry::builtin`: `r.add("name", MyStrategy::new)`.
 7. Test it with `testing::Bench`, which builds it as a config would, feeds bars and validates every signal.
 
-Tests: `src/orb/tests.rs` checks each rule bar by bar. `tests/orb_synthetic.rs` runs six months × 40 synthetic stocks and checks these hold on every bar:
-- signals are valid;
-- entries only fall in the entry window, at most once per stock per day;
-- everything is flat at day end;
-- runs are deterministic.
+Tests: `src/template.rs` checks its rules bar by bar with the bench. `crates/backtest/tests/end_to_end.rs` runs the template, long and short, through the whole system on synthetic data and checks the books balance, everything is flat by day end and runs are deterministic.

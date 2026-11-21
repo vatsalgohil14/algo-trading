@@ -34,7 +34,7 @@ Don't size or place orders. Work out what's going on from `ctx.position`, not fr
 
 Give each setup its own `reason`, such as `"breakout_long"`. Reports group by it, and sizing scores attach to it.
 
-Strategies that compare stocks can also use `on_minute_end`. See ORB's ranking.
+Strategies that compare stocks can also use `on_minute_end`, called once every stock's bar for a minute is in, to rank setups before sending them.
 
 ## 2. Register it
 
@@ -128,7 +128,16 @@ cargo run --release -p backtester -- --config config/backtests/my_strategy.toml 
 ## 7. Before believing a result
 
 - Synthetic data says nothing about profit.
-- One good run proves little. Follow the validation list in [orb.md](orb.md#validation): neighbouring settings, out-of-sample periods, different market regimes, doubled slippage, at least 300 trades.
+- Screen the idea first with the research tools ([Research](../research.md)). Most ideas fail there, cheaply.
+- One good run proves little. Before any real money, all of these must hold:
+    1. Few settings with round values, nothing tuned per stock.
+    2. Stable around the defaults: good results across neighbouring settings, not at one exact combination.
+    3. Walk-forward: pick settings on 2 years of data, test on the next 6 months, roll forward. Only out-of-sample results count.
+    4. Across market regimes, not one trending stretch.
+    5. Still profitable with doubled slippage.
+    6. At least 300 trades.
+    7. Clearly better than random entries at the same times with the same exits.
+    8. One month of paper trading, with fills matching the backtest.
 - `nifty50.txt` and `liquid_starter.txt` are today's large stocks, so results over past years are flattered by survivorship bias.
 - The simulated broker works from 1-minute bars. It's deliberately pessimistic, but real fills need checking in paper trading.
 
