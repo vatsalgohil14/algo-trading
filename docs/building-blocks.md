@@ -16,7 +16,7 @@ flowchart LR
 |---|---|
 | `rotation` | The strategy: daily-bar panel, point-in-time universe, `momentum` and `momentum_low_vol` rankings, monthly schedule, backtest, day-by-day paper account, and the monthly plan and orders ([Momentum rotation](strategies/rotation.md)) |
 | `store` | Writes rows into QuestDB over QWP (used by `dhan-daily`) |
-| `brokers/dhan` | Dhan REST API, instrument list, automatic login |
+| `dhan` | Dhan REST API, instrument list, automatic login |
 
 ## Tools
 

@@ -121,7 +121,7 @@ fn to_row(c: &Candle, symbol: &Arc<str>, security_id: i32, source: &'static str)
     })?
 }
 
-/// `symbol,security_id,tick_paise,lot_size`, as the backtester reads it.
+/// `symbol,security_id,tick_paise,lot_size` (read by the `live_feed` example).
 fn universe_line(symbol: &str, security_id: i32, tick: Decimal, lot: Decimal) -> Option<String> {
     let paise = (tick * Decimal::ONE_HUNDRED).round().to_i64()?;
     let lot = lot.to_i64().filter(|l| *l > 0).unwrap_or(1);

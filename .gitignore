@@ -7,7 +7,6 @@
 .env.*
 *.pem
 secrets/
-config/**/*.secret.toml
 
 # Local data / QuestDB
 /data/

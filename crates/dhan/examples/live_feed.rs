@@ -4,7 +4,7 @@
 //!     export DHAN_CLIENT_ID=...  DHAN_PIN=...  DHAN_TOTP_SECRET=...
 //!     cargo run -p dhan --example live_feed -- [universe.csv] [seconds]
 //!
-//! Defaults: `data/universe.csv` (written by `dhan-history`) and 60 seconds.
+//! Defaults: `data/universe_nse.csv` (written by `dhan-daily`) and 60 seconds.
 //! Logs in on its own: with `DHAN_PIN` and `DHAN_TOTP_SECRET` set it reuses
 //! or renews the cached token; otherwise it reads `DHAN_ACCESS_TOKEN`.
 
@@ -45,7 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let mut args = std::env::args().skip(1);
-    let path = args.next().unwrap_or_else(|| "data/universe.csv".into());
+    let path = args
+        .next()
+        .unwrap_or_else(|| "data/universe_nse.csv".into());
     let seconds: u64 = args.next().map(|s| s.parse()).transpose()?.unwrap_or(60);
 
     // `symbol,security_id,...` with a header line.

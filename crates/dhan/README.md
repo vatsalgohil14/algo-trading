@@ -2,7 +2,7 @@
 
 Async Rust client for the [DhanHQ v2 API](https://dhanhq.co/docs/v2/). It is a
 standalone broker SDK with no knowledge of strategies, so it can be reused by any
-part of the system (live trader, backtest data loader, tools).
+part of the system (today: the daily data download and the token check).
 
 ## What's covered
 
@@ -22,7 +22,7 @@ part of the system (live trader, backtest data loader, tools).
 | Live order updates | `order_update::OrderUpdateStream` — JSON WebSocket |
 | Instruments | `instruments::InstrumentMaster` — symbol → security ID, tick size, circuits, ASM/GSM flags |
 
-Not covered yet (not needed for intraday cash equity): forever orders, conditional
+Not covered yet (not needed for cash equity): forever orders, conditional
 triggers, option chain, expired options data, EDIS, 20/200-level depth feeds.
 
 ## Safety behaviour
@@ -48,7 +48,7 @@ triggers, option chain, expired options data, EDIS, 20/200-level depth feeds.
 - **Secrets** (`Secret`) never print in `Debug` output and are zeroed on drop.
 - **WebSockets** reconnect with jittered backoff, replay all subscriptions, detect
   silent connections (no data/ping for 30 s), and emit `Connected` /
-  `Disconnected` events so the engine can stop trading on stale data.
+  `Disconnected` events so a caller can stop trading on stale data.
 - The library is built under `deny(unwrap_used, expect_used, panic, indexing_slicing)`.
 
 ## Quick start
@@ -79,7 +79,7 @@ let ack = client.place_super_order(&order).await?;
 ```bash
 cargo run -p dhan --example instruments -- RELIANCE HDFCBANK   # no credentials needed
 cargo run -p dhan --example account_check                      # read-only
-cargo run -p dhan --example live_feed -- data/universe.csv 60  # needs Data API plan
+cargo run -p dhan --example live_feed -- data/universe_nse.csv 60  # needs Data API plan
 cargo run -p dhan --example order_updates                      # read-only
 ```
 

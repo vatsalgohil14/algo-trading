@@ -29,12 +29,12 @@ path = "src/bin/rotation_study.rs"
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
-dhan = { path = "../../crates/brokers/dhan" }
+dhan.workspace = true
 reqwest.workspace = true
 rotation.workspace = true
 serde_json.workspace = true
 rust_decimal.workspace = true
-tokio = { workspace = true, features = ["signal"] }
+tokio.workspace = true
 store.workspace = true
 
 [lints]

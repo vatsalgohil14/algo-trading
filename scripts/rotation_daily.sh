@@ -23,8 +23,8 @@ cargo build --release -q -p tools --bin dhan-daily --bin rotation-paper
 # The last 10 days: re-downloading a few days is harmless (one row per day
 # and stock) and picks up any day a previous run missed.
 from=$(date -v-10d +%F 2>/dev/null || date -d '10 days ago' +%F)
-mkdir -p data/paper
-./target/release/dhan-daily --from "$from" > data/paper/dhan_daily_last.log 2>&1 \
-  || { echo "dhan-daily failed; see data/paper/dhan_daily_last.log" >&2; exit 1; }
-tail -n 3 data/paper/dhan_daily_last.log
+mkdir -p data/logs
+./target/release/dhan-daily --from "$from" > data/logs/dhan_daily.log 2>&1 \
+  || { echo "dhan-daily failed; see data/logs/dhan_daily.log" >&2; exit 1; }
+tail -n 3 data/logs/dhan_daily.log
 exec ./target/release/rotation-paper run "$@"
