@@ -1,5 +1,5 @@
 site_name: Algo Trading
-site_description: An intraday trading system for NSE stocks, written in Rust
+site_description: A monthly momentum rotation for NSE stocks, written in Rust
 site_url: https://vatsalgohil14.github.io/algo-trading/
 repo_url: https://github.com/vatsalgohil14/algo-trading
 repo_name: vatsalgohil14/algo-trading
@@ -55,17 +55,12 @@ markdown_extensions:
 nav:
   - Home: index.md
   - How it works:
-      - Life of a trade: how-it-works.md
       - Building blocks: building-blocks.md
-      - When things go wrong: safety.md
   - Trading:
-      - Risk and costs: risk-and-costs.md
-      - Backtesting: backtesting.md
       - Data quality: data-quality.md
       - Research: research.md
-      - Add a strategy: strategies/how-to-add.md
+      - "Strategy: momentum rotation": strategies/rotation.md
   - Run it:
       - Local setup: runbook/local-setup.md
       - Dhan login: runbook/dhan-token.md
-      - Live monitor: runbook/live-monitor.md
   - Roadmap: roadmap.md

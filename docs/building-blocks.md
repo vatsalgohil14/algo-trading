@@ -1,75 +1,32 @@
 # Building blocks
 
-Each piece does one job and can be tested alone.
-
 ```mermaid
-flowchart TB
-    subgraph Engine
-      I[indicators] --> S[strategies]
-      S --> R[risk]
-      R --> O[oms]
-    end
-    C[costs] --> R
-    D[(QuestDB)] --> B[backtest]
-    B --> Engine
-    Engine <--> X[sim broker]
-    Engine -.later.-> H[Dhan]
-    F[Dhan feed] --> L[live-monitor]
-    L --> D
-    D --> L
+flowchart LR
+    H[Dhan API] --> DD[dhan-daily]
+    DD --> Q[(QuestDB bars_daily)]
+    Q --> RS[rotation-study]
+    Q --> RP[rotation-paper]
+    Q --> PL[rotation-plan]
+    RS & RP & PL --> R[rotation crate]
 ```
 
-## Core
+## Crates
 
 | Crate | Job |
 |---|---|
-| `core` | The shared language: prices, bars, orders, positions, time, and the candle builder that turns live trades into 1-minute candles |
-| `indicators` | SMA, EMA, RSI, ATR, VWAP, opening range and more, asked for by name. Can also preview values on a forming candle |
-| `strategies` | Turn bars into signals. Home of a template to copy, the shared kit (daily state, entry gate, signal builder), a test bench and the strategy registry |
-| `costs` | Brokerage, taxes, fees and slippage |
-| `risk` | Trade size, exposure caps, the daily loss halt |
-| `oms` | Tracks every order and position |
-| `engine` | Connects all of the above |
-
-## Testing
-
-| Crate | Job |
-|---|---|
-| `sim` | Synthetic market data, and a simulated broker that can misbehave on purpose |
-| `backtest` | Runs a strategy over history and writes a report |
-
-## Data and broker
-
-| Crate | Job |
-|---|---|
-| `store` | Reads and writes QuestDB |
-| `brokers/dhan` | Dhan REST API, live feeds, automatic login |
+| `rotation` | The strategy: daily-bar panel, point-in-time universe, `momentum` and `momentum_low_vol` rankings, monthly schedule, backtest, day-by-day paper account, and the monthly plan and orders ([Momentum rotation](strategies/rotation.md)) |
+| `store` | Writes rows into QuestDB over QWP (used by `dhan-daily`) |
+| `brokers/dhan` | Dhan REST API, instrument list, automatic login |
 
 ## Tools
 
 | Command | Job |
 |---|---|
-| `backtester` | Runs a backtest from a config file |
-| `dhan-history` | Downloads 1-minute candles into QuestDB |
+| `dhan-daily` | Downloads daily candles for every NSE stock into `bars_daily` |
 | `dhan-token` | Checks that Dhan login works |
-| `live-monitor` | Live candles and live/closed indicators; see [Live monitor](runbook/live-monitor.md) |
-| `event-study` | Screens a trading idea against a baseline and costs; see [Research](research.md) |
-| `synth-bars` | Loads synthetic bars into QuestDB |
+| `rotation-paper` | Paper account: fills at the open, daily report and alerts, orders for the next open |
+| `rotation-plan` | Target holdings and orders from your real holdings on a rebalance day |
+| `rotation-study` | The backtests behind the strategy: comparisons, stability, exits, capacity |
+| `scripts/rotation_daily.sh` | Evening job: `dhan-daily` for the last 10 days, then `rotation-paper run` |
 | `scripts/questdb.sh` | Starts, stops and sets up QuestDB |
-| `scripts/live_monitor.sh` | Loads `.env` and runs `live-monitor` |
 | `scripts/questdb_mcp.py` | Lets Claude query QuestDB |
-
-## Indicators available
-
-| Spec | Gives |
-|---|---|
-| `sma(n)`, `ema(n)` | Moving averages |
-| `rsi(n)` | Relative strength, 0–100 |
-| `atr(n)` | Average range per bar |
-| `atr_daily(n)` | Average range per day, from finished days |
-| `vwap` | Volume-weighted average price, reset daily |
-| `vol_sma(n)` | Average bar volume; `.prev` excludes the current bar |
-| `vol_tod(n)` | Normal volume for this minute of the day |
-| `turnover(n)` | Average daily traded value |
-| `orb(n)` | Opening range: `.high`, `.low`, `.range` |
-| `prev_day` | Yesterday's `.high`, `.low`, `.close` |

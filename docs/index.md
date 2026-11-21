@@ -1,27 +1,23 @@
 # Algo Trading
 
-**An intraday trading system for NSE stocks, written in Rust.** It looks for setups minute by minute, decides how much to risk, places orders with the stop already at the broker, and closes everything before the market does.
+**A monthly momentum rotation for NSE stocks, written in Rust.** Each month it ranks the 500 most-traded stocks, holds the 30 with the strongest and smoothest gains in equal amounts, and replaces the ones that fall too far down the ranking.
 
 !!! warning "Where this stands"
-    The system is built and tested on **simulated data only**. It has not yet run on real market data or placed a real order, so nothing here shows that it makes money. This is an engineering project, not investment advice.
+    The strategy passed a 2010–2026 backtest (+26% a year after costs, before tax, against +13% for the market) and is being **paper traded** from 20 November 2026. It places no real orders. Past results don't promise future returns, and this is not investment advice.
 
 <div class="grid cards" markdown>
 
--   :material-transit-connection-variant: **[Life of a trade](how-it-works.md)**
+-   :material-chart-line: **[The strategy](strategies/rotation.md)**
 
-    From a one-minute candle to a closed position, in six steps.
+    Rules, tested results, exits, risks, and how to run it each evening.
 
--   :material-shield-check: **[When things go wrong](safety.md)**
+-   :material-flask: **[Research](research.md)**
 
-    Timeouts, duplicate fills, a dead feed, a restart. What happens in each.
+    Everything tested so far, including what failed and why.
 
--   :material-scale-balance: **[Risk and costs](risk-and-costs.md)**
+-   :material-database-check: **[Data quality](data-quality.md)**
 
-    How big each trade is, and what it really costs.
-
--   :material-flask: **[Backtesting](backtesting.md)**
-
-    How a strategy is tested, and what it must pass.
+    What the data is, and what was cleaned out.
 
 </div>
 
@@ -29,32 +25,21 @@
 
 | Item | Detail |
 |---|---|
-| **Market** | NSE cash equity, intraday only |
-| **Broker** | Dhan |
-| **Capital** | ₹5 lakh, at up to 5× intraday leverage |
-| **Trade size** | ₹30,000 to ₹50,000 of exposure |
-| **Risk limits** | ₹500 per trade, ₹10,000 per day |
-| **Data** | 1-minute bars in QuestDB |
-| **Strategies** | None trading yet; ideas are screened first ([Research](research.md)) |
-
-## Four ideas behind the design
-
-**One code path.** A backtest and live trading run the same engine. Only the source of bars and the destination of orders change.
-
-**The broker is the truth.** Strategies are told their real position on every bar. They never assume an order worked.
-
-**Protection first.** The stop goes to the broker with the entry, so it exists even if this program dies.
-
-**Exact money.** Prices are whole paise, never floats, so results are exact and repeatable.
+| **Market** | NSE cash equity, delivery (held for weeks to months) |
+| **Data** | Daily candles for 2,601 NSE stocks from 2008, from Dhan, in QuestDB |
+| **Strategy** | Momentum + low volatility, top 30, rebalanced on the first trading day of each month |
+| **Exit** | Sold at a rebalance when it ranks below 60; no stop-loss |
+| **Running** | `scripts/rotation_daily.sh` each evening: update data, advance the paper account, print the report |
 
 ## New here?
 
-1. Read [Life of a trade](how-it-works.md).
-2. Set up your machine with [Local setup](runbook/local-setup.md).
-3. Run a backtest on synthetic data:
+1. Set up your machine with [Local setup](runbook/local-setup.md), and [Dhan login](runbook/dhan-token.md).
+2. Read [the strategy](strategies/rotation.md).
+3. Start a paper account and run the evening job:
 
 ```bash
-cargo run --release -p backtester -- --config config/backtests/template_synthetic.toml
+cargo run --release -p tools --bin rotation-paper -- init --capital 1000000
+scripts/rotation_daily.sh
 ```
 
 Then see [what's left to build](roadmap.md).

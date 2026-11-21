@@ -1,4 +1,7 @@
-# Research: testing an idea before building it
+# Research
+
+!!! note "Tools removed"
+    The intraday engine and the one-off research tools (`event-study`, `factor-study`, `statarb-study`, `daily-study`, `pattern-study`) were deleted on 2026-11-21 once their results were recorded here. Commands for them below are kept as a record only. `rotation-study` remains.: testing an idea before building it
 
 A full strategy takes time to write and a backtest mixes many decisions together. Before that, test the idea itself: when the condition happens, does the price then move the way the idea expects, by more than chance and more than costs?
 
@@ -113,3 +116,184 @@ cargo run --release -p tools --bin factor-study      # first run caches daily ba
 3. **Longer history.** 10+ years of daily data covers more than one market regime.
 
 Then rerun this study. If the monthly contrarian and low-high ideas still hold at t above 3, build them as a strategy.
+
+## Intraday stat-arb: random-matrix factors + Ornstein-Uhlenbeck reversion (2026-11-21)
+
+**Idea** (Avellaneda and Lee, 2010, moved to intraday bars): strip out the common factors, then trade each stock's leftover move back toward its equilibrium.
+
+1. Each morning, form the correlation matrix of the last 10 sessions of 5-minute returns for the 50 stocks.
+2. Keep only the eigenvectors above the Marchenko-Pastur noise edge: the real common factors, such as the market and sector baskets.
+3. Every bar, a stock's residual is its return minus what those factors explain.
+4. Fit an Ornstein-Uhlenbeck process (an AR(1)) to the last 60 bars of cumulative residual. That gives a half-life, an equilibrium level and its spread.
+5. Trade the s-score (distance from equilibrium in spreads): short above +1.25 or +2, long below the mirror level. Close at −0.5 (long) or +0.75 (short), or at 15:10.
+6. Only stocks whose half-life is 15–90 minutes. An optional cost gate requires the expected reversion (σ_eq·|s|) to be at least 1× or 3× the 15 bps round trip.
+
+```bash
+cargo run --release -p tools --bin statarb-study                 # 5-minute bars
+cargo run --release -p tools --bin statarb-study -- --bar-minutes 15 --ou-bars 40
+```
+
+**The model behaves as the theory says:**
+- about 6 factors above the noise edge each day, the first (the market) explaining about 21% of the variance;
+- median residual half-life of 38 minutes, so the reversion does fit inside a session.
+
+**Result: failed** (Jan 2022 to Nov 2026, entry at the next bar's open):
+
+| Bars | Entry | Trades | Per trade, before costs | t | Net after 15 bps |
+|---|---|---|---|---|---|
+| 5 min | \|s\| > 1.25 | 80,427 | +0.6 bps | 3.5 | −14.4 |
+| 5 min | \|s\| > 1.25, cost gate 3× | 33,568 | +0.5 bps | 1.6 | −14.5 |
+| 5 min | \|s\| > 2 | 17,544 | +0.3 bps | 0.7 | −14.8 |
+| 15 min | \|s\| > 1.25 | 42,770 | −0.5 bps | −1.6 | −15.5 |
+| 1 min | \|s\| > 1.25 | 112,806 | +0.3 bps | 3.6 | −14.7 |
+
+- **The reversion is real but tiny:** t 3.5 on 80,000 trades, worth about half a basis point. The factor-hedged residual earns the same, so hedging doesn't rescue it.
+- **The cost gate doesn't help:** the OU fit "expects" 45+ bps of reversion on 33,000 trades, but they deliver 0.5. On 60 bars the fitted spread is mostly noise in a near-random walk, so the expected reversion is badly overstated.
+- **It's the same in every year,** and at 1, 5 and 15 minutes.
+
+**Why it fails here and works on desks:** desks run this with costs of 1–3 bps, on thousands of names, entering at the signal price rather than the next bar's open. With 15 bps of retail cost per round trip on cash equity, the edge would need to be about 30 times larger.
+
+**Not testable with our data:** order-flow models such as Hawkes processes need every trade with its aggressor side; Dhan's feed sends about one snapshot per second. A cash-futures Kalman spread needs futures history, which we don't store.
+
+## Monthly rotation on every NSE stock (2026-11-21)
+
+**Data:** daily candles for all 2,601 NSE company shares in Dhan's list (EQ and BE series, Indian ISINs), January 2008 to November 2026, in `bars_daily` (6.3 million rows, from `dhan-daily`). Prices are adjusted for splits and bonuses, and the close is NSE's official closing price.
+
+**Universe, point in time:** on each rebalance, the 500 stocks with the highest median daily traded value over the previous 60 days, priced at least ₹20, with a year of unbroken history. 1,285 different stocks passed through it over 2016–2026. This avoids using today's index members. Companies that were delisted or merged away are still missing, because Dhan's list only has current listings.
+
+**Method:** every 21 trading days, rank the universe, buy the top 20 or 30 in equal amounts at the next open, and hold to the next rebalance. Costs are 40 bps per round trip on the replaced fraction (delivery STT, stamp, exchange, DP and mid-cap slippage). The benchmark is all 500, equally weighted. The trend filter goes to cash while that benchmark is below its 200-day average.
+
+```bash
+cargo run --release -p tools --bin rotation-study                          # 2016-2026
+cargo run --release -p tools --bin rotation-study -- --from 2010-01-01 --cache data/daily_nse_2008.csv
+```
+
+### Results, 2010–2026 (17 years), top 30, after costs
+
+| Strategy | CAGR | Sharpe | Max drawdown | Worst year | Excess per month (t) |
+|---|---|---|---|---|---|
+| Benchmark: all 500 equal weight | +13.3% | 0.68 | −54% | −33% | — |
+| **Momentum + low volatility** | **+25.4%** | **1.18** | **−29%** | **−15%** | **+0.85% (3.4)** |
+| Momentum 12-1 | +28.7% | 1.06 | −53% | −34% | +1.20% (4.2) |
+| Volatility-adjusted momentum | +24.5% | 1.01 | −46% | −27% | +0.86% (3.1) |
+| Low volatility | +10.7% | 0.89 | −19% | −18% | −0.35% (−1.2) |
+| Momentum 6-1 | similar to 12-1, weaker | | | | |
+| Near 52-week high | about the benchmark | | | | |
+| Far below the 6-month high (the 50-stock lead) | −0.6% (2016–26) | 0.14 | −79% | | −0.98% (−2.7) |
+| 1-month reversal | +4.2% (2016–26) | 0.29 | −68% | | −0.68% (−2.6) |
+
+**Checks on the momentum family:**
+- **Before the main period:** 2010–2015, which the 2016–2026 work never looked at, is even stronger. Momentum 12-1 top 20 made +43% a year (t 5.0); momentum + low volatility top 30 made +29% (t 2.9).
+- **Main period alone,** 2016–2026: momentum 12-1 top 30 made +26.3% (t 2.5); momentum + low volatility top 30 made +22.9% (t 1.9), against a benchmark of +14.4%.
+- **Doubled costs** (80 bps): momentum 12-1 top 30 still made +24.4%, and momentum + low volatility +20.7% (2016–2026).
+- **Top 200 instead of 500:** the edge shrinks to about +3–5% a year over the benchmark. Much of it comes from stocks ranked 200–500 by liquidity, the mid and small caps.
+- **Trend filter:** it cuts drawdowns but costs 4–6% a year of return. Not worth it here.
+
+### Verdict: momentum passes, the contrarian lead was an artefact
+
+- **Momentum in Indian stocks is real in this data.** It shows up in both halves, holds with doubled costs, and reaches t 3–4 over 17 years.
+- **Momentum + low volatility is the best balance:** about 25% a year with half the drawdown of plain momentum. It's the candidate to build.
+- **The 50-stock contrarian result reversed on the unbiased universe** (−0.6% a year). That's the survivorship bias we suspected, now measured.
+
+**Before building it:**
+1. **Parameter stability:** the volatility penalty (3×), rebalance day offsets, and 15/20/30/40 holdings.
+2. **Liquidity:** check the traded value of what it buys against the capital size, since the edge sits in mid and small caps.
+3. **Taxes are not included.** About 4 portfolio turns a year means most gains are short-term (20% STCG), which takes several points off the net return.
+4. **Survivorship:** delisted companies are missing; momentum rarely holds them, but this remains unmeasured.
+
+### More rotation research (2026-11-21)
+
+These all run on the `rotation` crate, the same code `rotation-plan` uses. The crate reproduces the numbers above.
+
+**New ranking signals, 2010–2026, top 30:**
+
+| Signal | CAGR | Max drawdown | t |
+|---|---|---|---|
+| **Momentum consistency** (months up out of the last 11, ties broken by 12-1) | +26.7% | −29% | 4.0 |
+| Residual momentum (12-1 of returns after removing market beta) | +25.1% | −41% | 3.4 |
+| Momentum 6-1 | +24.7% | −53% | 3.4 |
+| 1-month reversal | −2.6% | −77% | −4.3 |
+
+Momentum consistency is as good as momentum + low volatility. It's the next candidate for the crate.
+
+**Stability of the two chosen strategies** (full tables in `data/rotation_research_2010.txt` and `_2016.txt`):
+
+| What was varied | Result |
+|---|---|
+| Holdings, 10–50 | Works throughout; 30–50 is smoothest (momentum + low volatility top 40–50: −25% drawdown) |
+| Volatility penalty, 0–6 | 2–4 is best; 3 balances return and drawdown |
+| Momentum windows | 12-1 best (+28.8%), then 9-1 (+26.3%), 12-2 (+24.6%) and 12-3 (+23.3%) |
+| Start day of the month | 2016–2026 spread: 23–28% for momentum + low volatility, 24–26% for 12-1. Part of any single result is luck |
+| Rebalance frequency | 2 weeks to quarterly all work; every 2 months keeps the return with a third less turnover |
+| Capital (2% of daily value cap) | ₹10–50 lakh unchanged; ₹2 crore −3%/yr; ₹10 crore −9%/yr; ₹50 crore gone |
+| Half low-volatility sleeve | Smoother but gives up 6–8%/yr. Not worth it |
+
+**Other daily strategies** (`daily-study`, 2010–2026):
+
+| Strategy | CAGR | Max drawdown | Verdict |
+|---|---|---|---|
+| Swing pullback: close above 200-day average, RSI(2) < 10, sell above 5-day average or after 10 days, 10 slots | +13.0% | −51% | **Fails:** about the market, 570 trades a year, and −10% a year at 80 bps |
+| Buy and hold Nifty (NIFTYBEES) | +10.4% | −30% | Reference |
+| **Monthly asset rotation:** best 12-month performer of Nifty, Nifty Next 50 and gold, if it beats 6.5% cash | **+16.7%** | **−19%** | **Passes:** a low-risk core, about 2 switches a year |
+| Momentum + low volatility, but cash when Nifty's 12-month return < cash | +14.3% | −33% | Hurts: misses the rebounds |
+| Same, gold instead of cash when gold is strong | +18.0% | −29% | Hurts, less |
+
+The asset rotation assumes cash earns 6.5% a year; LIQUIDBEES pays its interest as units, so its price can't be used. Gold ETFs are taxed differently from shares.
+
+### Exits for the rotation (2026-11-21)
+
+Should a momentum stock be sold on a stop-loss? Tested over 2010–2026 with the `rotation` crate (`stop_loss`, `trailing_stop`, `exit_rank`). Full table on the [Momentum rotation](strategies/rotation.md#exits) page.
+
+- **Fixed and trailing stops (15–25%) all lower the return** by 2–7% a year and make the worst fall deeper. Momentum stocks are volatile: stops sell ordinary dips and miss the rebounds.
+- **A rank buffer** (keep a held stock until it falls below rank 45–90) gives the same return with half the turnover. For momentum + low volatility it also cuts the worst fall from −29% to −23%.
+- Recommended: `--exit-rank 60`, no stop.
+
+### Calendar rebalancing and a paper replay (2026-11-21)
+
+**Calendar rebalancing:** the rotation now rebalances on the close of the first trading day of each month, a day you can know in advance, instead of every 21 trading days. Over 2010–2026, momentum + low volatility with exit rank 60 made +26.1% a year with a −24% worst fall. On the old schedule it made 24.8%, and 24.9–26.7% depending on the starting day. So the calendar changes nothing real; it makes live runs and the backtest pick the same days.
+
+**Paper replay:** the day-by-day paper account (`rotation-paper`) made +14.3% from 2025-11-03 to 2026-11-20, while the backtest made +16.1% over the same year. The account trades whole shares, keeps equal weights within a 25% band and includes the unfinished November. The replay also caught a sizing bug before it went live: without trimming, a stock that had risen 3.5× took up so much of the account that later buys ran out of cash.
+
+## Candlestick patterns and classic indicators (2026-11-21)
+
+**Question:** do the usual chart signals predict returns on NSE stocks?
+
+**Method** (`pattern-study`):
+- 11 candlestick patterns (textbook definitions, with the prior trend they need) and 13 indicator signals: RSI, MACD, Bollinger Bands, Supertrend(10,3), golden and death crosses, 20-day volume breakouts, 20-day average crosses.
+- Daily bars, 2010–2026, only stocks in that month's top 500.
+- Enter at the next open; measure the return beyond the equal-weight top 500 over 1, 5, 10 and 20 days.
+- t treats each signal day as one observation. Costs for delivery are about 40 bps per round trip.
+
+```bash
+cargo run --release -p tools --bin pattern-study
+```
+
+**Results, return beyond the market, 20-day hold, in bps:**
+
+| Signal | Expected | Events a year | 20 days (t) | Verdict |
+|---|---|---|---|---|
+| Hammer after a fall | up | 624 | +14 (1.0) | Noise |
+| Bullish engulfing after a fall | up | 2,513 | +3 (0.3) | Noise |
+| Piercing line | up | 311 | +16 (0.8) | Noise |
+| Morning star | up | 152 | −35 (−1.5) | Wrong way, not significant |
+| Three white soldiers | up | 225 | −39 (−1.5) | Wrong way |
+| Doji | — | 14,163 | +4 (1.8) | Nothing |
+| Shooting star after a rise | down | 1,108 | +21 (1.8) | Wrong way |
+| Bearish engulfing after a rise | down | 4,469 | +1 (0.1) | Noise (−10 bps next day, t −6.7, too small to trade) |
+| Dark cloud cover | down | 490 | −26 (−1.9) | Right way, weak |
+| Evening star / three black crows | down | 180 / 770 | −8 / −24 | Weak |
+| **Supertrend turns up** | up | 1,395 | **−81 (−7.0)** | **Strongly wrong way** |
+| **20-day high breakout on 2× volume** | up | 3,259 | **−42 (−4.6)** | **Wrong way** |
+| Close above the upper Bollinger band | up | 4,075 | −35 (−4.9) | Wrong way |
+| Close below the lower Bollinger band | up | 3,275 | −50 (−5.3) | Wrong way: weak stocks stay weak |
+| RSI(14) crosses up through 30 | up | 1,544 | −65 (−5.3) | Wrong way |
+| RSI(14) crosses up through 70 | up | 2,339 | −6 (−0.6) | Noise |
+| MACD crosses above its signal | up | 4,802 | −13 (−2.2) | Wrong way |
+| Golden cross | up | 312 | +15 (0.9) | Noise |
+| Death cross | down | 362 | −39 (−2.5) | Right way, weak |
+
+**Verdict:**
+- **Candlestick patterns carry no tradable information here.** Effects are within ±40 bps, rarely significant, flip sign across years, and are well below the 40 bps round trip.
+- **Popular indicator buy signals do worse than the market.** A signal that fires after a sharp move up (Supertrend flip, volume breakout, Bollinger breakout, MACD cross) buys the next open, after the jump, and the stock then lags by 0.3–0.8% over a month. Oversold signals (RSI up through 30, lower Bollinger band) lag too: falling stocks keep falling, the same fact that made reversal lose and momentum win.
+- What works is slow and cross-sectional: ranking stocks on 6–12 months of steady gains. One-day chart signals are too common, too crowded and too short.
+- Bearish signals (death cross, dark cloud cover) point the right way, weakly. They could be tested later as sell filters for held stocks; the stop-loss results suggest little gain.

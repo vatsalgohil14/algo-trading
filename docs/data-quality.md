@@ -12,7 +12,7 @@ NSE runs mock trading sessions on some Saturdays to test systems. Dhan's history
 | Sat 9 Apr 2022 | 11,188 | Median day range 22.2%; reopened 7.1% away |
 | Sat 30 Apr 2022 | 7,250 | Median day range 19.9%; reopened 5.8% away |
 
-All three days were dropped from `bars_1m`, and `dhan-history` skips them, so a re-download doesn't bring them back.
+All three days were dropped from `bars_1m`. (The 1-minute downloader, `dhan-history`, has since been deleted with the intraday code; the table stays.)
 
 ## Kept: real weekend sessions
 
@@ -30,26 +30,26 @@ These weekend days are real trading. Their prices continue from the days around 
 
 Never filter history by weekday alone.
 
-## Filtered: candles outside the session
+## Removed: candles outside the session
 
 | Candles | Count | Until |
 |---|---|---|
 | 09:07 pre-open candle | 8,195 | Dec 2023 |
 | 15:30 and later, almost all flat with zero volume | 168,786 | Nov 2024 |
 
-Neither is continuous trading. They are still in the database from the first download, but the backtester and the live monitor's warm-up only read 09:15–15:29, and `dhan-history` no longer stores them.
+Neither is continuous trading. Both were deleted from `bars_1m` on 21 Nov 2026, with the 4 invalid candles below. `bars_1m` now holds 22,790,047 candles.
 
 ## Known, not fixed yet
 
 - **Adjusted for corporate actions only in part.** Dhan adjusts most past prices for later splits and bonuses: RELIANCE shows about ₹1,090 and NESTLEIND about ₹935 in February 2022, well below what they traded at then. Some actions still show as price jumps, for example BSE on 21 Mar 2022 (937 → 300) and TMPV on 14 Oct 2025 (665 → 400, the Tata Motors demerger). Indicators that span such a date (moving averages, ATR, previous-day levels) are wrong around it. Adjusted prices also shift price filters: a stock can pass a ₹5,000 cap in the past only because of a later split. Fixing this needs a list of corporate actions to check each stock against.
 - **Flat zero-volume candles inside the session.** 20,849 of them, mostly at 15:29 in 2022. They are filler, and they pull volume averages down slightly.
-- **One invalid candle.** HINDUNILVR at 15:29 on 22 Apr 2025 closes below its own low. Readers reject candles that fail validation, so it is never used.
+- **Invalid candles, deleted.** HINDUNILVR at 15:29 on 22 Apr 2025 closed below its own low, and three NESTLEIND 15:29 candles in 2022 had negative volume. All four were deleted on 21 Nov 2026; readers had always rejected them.
 - **Short history.** JIOFIN starts on 21 Aug 2023, so it has about 800 days against about 1,236 for the others.
 - **Real gaps.** Most other large jumps are real overnight gaps at the open, such as 3 Jun 2024 (election results eve) and 7 Apr 2025 (the tariff sell-off).
 
 ## Checking again
 
-The queries used are in [Live monitor](runbook/live-monitor.md#useful-queries) and below. Run them in the QuestDB console after any new download.
+The queries used are below. Run them in the QuestDB console after any new download.
 
 Weekend days present, to compare with the tables above:
 

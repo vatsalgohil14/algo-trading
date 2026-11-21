@@ -1,0 +1,16 @@
+[package]
+name = "rotation"
+version = "0.1.0"
+description = "Monthly stock rotation: daily-bar panel, point-in-time universe, ranking strategies, backtest and rebalance plans"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
