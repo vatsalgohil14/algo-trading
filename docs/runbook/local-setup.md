@@ -6,7 +6,7 @@ Everything lives in your home folder; nothing needs admin rights.
 |---|---|---|
 | Rust toolchain | pinned in `rust-toolchain.toml` | `~/.cargo`, `~/.rustup` |
 | Java runtime (for QuestDB) | Eclipse Temurin 25 JRE | `~/.local/opt/temurin-25-jre` |
-| QuestDB | 10.1.0 | `~/.local/opt/questdb` → `questdb-10.1.0` |
+| QuestDB | 10.2.0 | `~/.local/opt/questdb` → `questdb-10.2.0` |
 | QuestDB data | — | `~/.questdb` |
 | cargo-audit, cargo-deny | latest | `~/.cargo/bin` |
 

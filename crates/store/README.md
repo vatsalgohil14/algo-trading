@@ -53,7 +53,7 @@ let n = q.scalar_i64("SELECT count() FROM bars_1m")?;
 
 QuestDB is configured (`deploy/questdb/server.conf`) to **reject** writes to
 unknown tables or columns instead of silently creating them. Two consequences
-were verified against QuestDB 10.1 and are handled here:
+were verified against QuestDB 10.1 (and the live tests pass on 10.2) and are handled here:
 
 1. A rejected row fails its **whole batch**, and the sender stops accepting
    data. In durable mode the rejected batch would also block everything queued
