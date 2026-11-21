@@ -53,6 +53,7 @@ flowchart TB
 | `dhan-history` | Downloads 1-minute candles into QuestDB |
 | `dhan-token` | Checks that Dhan login works |
 | `live-monitor` | Live candles and live/closed indicators; see [Live monitor](runbook/live-monitor.md) |
+| `event-study` | Screens a trading idea against a baseline and costs; see [Research](research.md) |
 | `synth-bars` | Loads synthetic bars into QuestDB |
 | `scripts/questdb.sh` | Starts, stops and sets up QuestDB |
 | `scripts/live_monitor.sh` | Loads `.env` and runs `live-monitor` |

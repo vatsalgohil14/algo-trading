@@ -30,6 +30,10 @@ struct Args {
     /// Multiply slippage, e.g. 2 for the doubled-slippage test.
     #[arg(long)]
     slippage_mult: Option<f64>,
+    /// Run strategies that have been retired, e.g. to reproduce the result
+    /// that retired them.
+    #[arg(long)]
+    allow_retired: bool,
 }
 
 fn main() -> ExitCode {
@@ -80,6 +84,19 @@ fn run(args: &Args) -> Result<(), Error> {
         .map_err(|e| format!("cannot read {}: {e}", args.config))?;
     let config: BacktestConfig =
         toml::from_str(&text).map_err(|e| format!("{}: {e}", args.config))?;
+
+    let registry = strategies::Registry::builtin();
+    for s in &config.strategy {
+        if let Some(why) = registry.retired(&s.name)
+            && !args.allow_retired
+        {
+            return Err(format!(
+                "strategy {:?} is retired: {why}. Pass --allow-retired to run it anyway.",
+                s.name
+            )
+            .into());
+        }
+    }
 
     let (universe, mut source) = load(&config.data)?;
     let strategies = strategy_specs(&config.strategy, &universe)?;

@@ -3,7 +3,7 @@
 A backtest runs the real engine over history, with a simulated broker in place of Dhan.
 
 ```bash
-cargo run --release -p backtester -- --config config/backtests/orb_synthetic.toml
+cargo run --release -p backtester -- --config config/backtests/template_synthetic.toml
 ```
 
 You get P&L after costs, results by setup, exit and month, how often each filter blocked a trade, and a health check. `trades.csv` and `daily.csv` are saved for further analysis.

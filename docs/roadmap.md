@@ -20,13 +20,15 @@
 - [x] History checked; mock-trading days removed ([Data quality](data-quality.md))
 - [x] First real ORB backtest: fails before costs, at every neighbouring setting
 - [x] Shared strategy base: daily state, entry gate, signal builder, test bench, registry ([Add a strategy](strategies/how-to-add.md))
+- [x] Event-study tool to screen ideas against a baseline and costs ([Research](research.md)); VWAP reversion screened and failed
 
 ## Next
 
 - [ ] Parameter sweeps, walk-forward and random-entry tests
 - [ ] A stock list free of survivorship bias
 - [ ] Daily tradable list: surveillance, corporate actions, real leverage
-- [ ] More strategies
+- [ ] Screen more ideas with the event study: gap fade, relative strength, volume shock
+- [ ] More strategies, once an idea passes the screen
 
 ## Before real money
 
@@ -44,5 +46,4 @@
 - The live feed is not yet connected to the engine, so strategies don't run on live data yet.
 - The Nifty 50 list is today's, so long backtests on it carry survivorship bias.
 - History is not adjusted for bonuses, splits or demergers; see [Data quality](data-quality.md).
-- ORB takes no new trades after a mid-day restart.
-- ORB failed on 2022–2026 Nifty 50 data: profit factor 0.52, negative even before costs, and every neighbouring setting also loses. Not to be traded as it stands.
+- ORB failed on 2022–2026 Nifty 50 data (profit factor 0.52, negative even before costs, at every neighbouring setting) and is retired.

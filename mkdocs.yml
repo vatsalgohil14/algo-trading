@@ -63,6 +63,7 @@ nav:
       - "Strategy: ORB": strategies/orb.md
       - Backtesting: backtesting.md
       - Data quality: data-quality.md
+      - Research: research.md
       - Add a strategy: strategies/how-to-add.md
   - Run it:
       - Local setup: runbook/local-setup.md

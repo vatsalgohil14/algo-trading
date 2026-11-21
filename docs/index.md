@@ -54,7 +54,7 @@
 3. Run a backtest on synthetic data:
 
 ```bash
-cargo run --release -p backtester -- --config config/backtests/orb_synthetic.toml
+cargo run --release -p backtester -- --config config/backtests/template_synthetic.toml
 ```
 
 Then see [what's left to build](roadmap.md).

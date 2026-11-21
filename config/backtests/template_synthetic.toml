@@ -1,0 +1,10 @@
+# Checks the machinery on random data with the template strategy. The P&L
+# here means nothing.
+[data]
+source = "synthetic"
+from = "2025-01-01"
+to = "2025-12-31"
+stocks = 40
+
+[[strategy]]
+name = "template"

@@ -19,10 +19,19 @@ name = "dhan-token"
 path = "src/bin/dhan_token.rs"
 
 [[bin]]
+name = "event-study"
+path = "src/bin/event_study.rs"
+
+[[bin]]
+name = "factor-study"
+path = "src/bin/factor_study.rs"
+
+[[bin]]
 name = "live-monitor"
 path = "src/bin/live_monitor.rs"
 
 [dependencies]
+backtest.workspace = true
 chrono.workspace = true
 clap.workspace = true
 dhan = { path = "../../crates/brokers/dhan" }

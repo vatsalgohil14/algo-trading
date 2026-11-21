@@ -1,7 +1,10 @@
 # ORB v1: Opening Range Breakout
 
-Status: implemented in `crates/strategies/src/orb` (rules below).
-**Failed its first real backtest** (Nifty 50, Jan 2022 to Oct 2026, with
+Status: **retired**. The code stays in `crates/strategies/src/orb` (rules
+below), as a record and as the engine's test example, but the backtester
+refuses it unless run with `--allow-retired`.
+
+It **failed its first real backtest** (Nifty 50, Jan 2022 to Oct 2026, with
 costs): 6,444 trades, profit factor 0.52, −0.158R per trade, profitable in
 2 of 58 months. It loses even before costs (₹−76k gross), and so does every
 combination of 10/15/20/30-minute ranges and 1.5/2/3R targets. Most of the

@@ -116,7 +116,7 @@ cargo run --release -p backtester -- --config config/backtests/my_strategy.toml
 The report covers P&L after costs, the pass mark, results by setup, exit reason and month, which filters blocked trades, and health counters. `data/backtests/latest/` gets `trades.csv` and `daily.csv`. Try it now without any data:
 
 ```bash
-cargo run --release -p backtester -- --config config/backtests/orb_synthetic.toml
+cargo run --release -p backtester -- --config config/backtests/template_synthetic.toml
 ```
 
 Then test with doubled slippage:

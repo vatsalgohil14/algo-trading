@@ -35,6 +35,9 @@ pub type Factory = Box<
 /// Strategies by name, so a config file can choose them.
 pub struct Registry {
     factories: BTreeMap<&'static str, Factory>,
+    /// Strategies kept for tests and the record, with why they were
+    /// retired. Real runs refuse them; see [`Registry::retired`].
+    retired: BTreeMap<&'static str, &'static str>,
 }
 
 impl std::fmt::Debug for Registry {
@@ -47,6 +50,7 @@ impl Registry {
     pub fn empty() -> Self {
         Self {
             factories: BTreeMap::new(),
+            retired: BTreeMap::new(),
         }
     }
 
@@ -56,8 +60,25 @@ impl Registry {
     pub fn builtin() -> Self {
         let mut r = Self::empty();
         r.add("orb", Orb::new);
+        r.retire(
+            "orb",
+            "failed its first real backtest (Nifty 50, 2022-2026): profit factor 0.52, \
+             losing even before costs at every nearby setting; see docs/strategies/orb.md",
+        );
         r.add("template", Template::new);
         r
+    }
+
+    /// Marks `name` as retired with the reason. It can still be built (tests
+    /// use it as an example), but tools that trade or backtest for real
+    /// should refuse it.
+    pub fn retire(&mut self, name: &'static str, why: &'static str) {
+        self.retired.insert(name, why);
+    }
+
+    /// Why `name` was retired, or `None` if it is in use.
+    pub fn retired(&self, name: &str) -> Option<&'static str> {
+        self.retired.get(name).copied()
     }
 
     /// Registers `new` under `name`. Its settings type `C` is read from the
@@ -131,9 +152,9 @@ mod tests {
         ));
         assert!(build("orb", id, serde_json::json!({"typo": 1}), &mut b, 2).is_err());
         assert!(build("orb", id, serde_json::json!({"target_r": -1}), &mut b, 2).is_err());
-        assert_eq!(
-            super::Registry::builtin().names().collect::<Vec<_>>(),
-            ["orb", "template"]
-        );
+        let r = super::Registry::builtin();
+        assert_eq!(r.names().collect::<Vec<_>>(), ["orb", "template"]);
+        assert!(r.retired("orb").is_some());
+        assert!(r.retired("template").is_none());
     }
 }

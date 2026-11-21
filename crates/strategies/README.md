@@ -20,7 +20,7 @@ set.on_minute_end(close, &mut signals);
 
 | Strategy | Rules | Status |
 |---|---|---|
-| `orb` | [docs/strategies/orb.md](../../docs/strategies/orb.md) | Failed its first real backtest |
+| `orb` | [docs/strategies/orb.md](../../docs/strategies/orb.md) | Retired: failed its first real backtest. Kept as the engine's test example |
 | `template` | `src/template.rs` | Example to copy; not for trading |
 
 ## Writing a strategy
