@@ -23,7 +23,6 @@ governor = "0.10"
 questdb-rs = { version = "7.2.1", default-features = false, features = [
   "sync-sender-qwp-ws",
   "sync-reader-qwp-ws",
-  "rust_decimal",
   "tls-webpki-certs",
   "ring-crypto",
 ] }

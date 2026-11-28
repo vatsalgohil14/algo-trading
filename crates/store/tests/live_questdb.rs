@@ -4,9 +4,9 @@
 //!     cargo test -p store -- --ignored --test-threads=1
 //!
 //! Test rows use security IDs above 990_000_000 and timestamps on
-//! 1990-01-02, a date no real market data has. Each test removes the
-//! 1990-01-02 partition of the tables it touched, so real data is never
-//! modified.
+//! 1990-01-02, a date no real market data has. Each test removes the 1990
+//! partitions it wrote (`bars_1m` by day, `bars_daily` by year), so real
+//! data is never modified.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -17,12 +17,8 @@
 use std::time::{Duration, Instant};
 
 use chrono::{DateTime, TimeZone, Utc};
-use rust_decimal::Decimal;
-use store::query::{BarTable, QueryClient};
-use store::rows::{
-    Bar, DepthLevel, FillRow, IndicatorRow, InstrumentRow, Level, Mode, OrderEvent, PnlDailyRow,
-    PositionRow, Record, RunRow, SignalRow, SystemEvent, Tick,
-};
+use store::query::QueryClient;
+use store::rows::{Bar, Record};
 use store::{Durability, Store, StoreConfig};
 
 const TEST_DAY: &str = "1990-01-02";
@@ -61,11 +57,12 @@ fn bar(security_id: i32, minute: i64, close: f64) -> Bar {
     }
 }
 
-fn cleanup(q: &mut QueryClient, tables: &[&str]) {
-    for t in tables {
-        // Fails harmlessly when the partition doesn't exist.
-        let _ = q.execute(&format!("ALTER TABLE {t} DROP PARTITION LIST '{TEST_DAY}'"));
-    }
+/// Drops the test partitions. Fails harmlessly when they don't exist.
+fn cleanup(q: &mut QueryClient) {
+    let _ = q.execute(&format!(
+        "ALTER TABLE bars_1m DROP PARTITION LIST '{TEST_DAY}'"
+    ));
+    let _ = q.execute("ALTER TABLE bars_daily DROP PARTITION LIST '1990'");
 }
 
 /// WAL tables apply asynchronously; poll until the count settles.
@@ -89,7 +86,7 @@ fn wait_for_count(q: &mut QueryClient, sql: &str, expected: i64) -> i64 {
 fn bars_round_trip_and_dedup() {
     let cfg = config("test_bars");
     let mut q = QueryClient::connect(&cfg).unwrap();
-    cleanup(&mut q, &["bars_1m"]);
+    cleanup(&mut q);
 
     let sid = 990_000_001;
     let bars: Vec<Bar> = (0..375)
@@ -116,49 +113,11 @@ fn bars_round_trip_and_dedup() {
     let count_sql = format!("SELECT count() FROM bars_1m WHERE security_id = {sid}");
     assert_eq!(wait_for_count(&mut q, &count_sql, 375), 375);
 
-    let from = day_start();
-    let to = from + chrono::TimeDelta::days(1);
-    let back = q.bars(BarTable::OneMinute, sid, from, to).unwrap();
-    assert_eq!(back.len(), 375);
-    assert_eq!(back, bars, "bars read back must equal bars written");
+    let volume: i64 = bars.iter().map(|b| b.volume).sum();
+    let sum_sql = format!("SELECT sum(volume) FROM bars_1m WHERE security_id = {sid}");
+    assert_eq!(q.scalar_i64(&sum_sql).unwrap(), volume);
 
-    cleanup(&mut q, &["bars_1m"]);
-}
-
-#[test]
-#[ignore = "needs a running QuestDB with the schema applied"]
-fn decimals_are_exact() {
-    let cfg = config("test_fills");
-    let mut q = QueryClient::connect(&cfg).unwrap();
-    cleanup(&mut q, &["fills"]);
-
-    let store = Store::start(cfg).unwrap();
-    store
-        .write(FillRow {
-            ts: day_start(),
-            run_id: "test".into(),
-            mode: Mode::Backtest,
-            strategy: "test".into(),
-            correlation_id: "zz-1".into(),
-            order_id: "1".into(),
-            trade_id: "zz-trade-1".into(),
-            segment: "NSE_EQ".into(),
-            security_id: 990_000_002,
-            symbol: "ZZTEST".into(),
-            side: "BUY".into(),
-            qty: 10,
-            price: Decimal::new(142_805, 2),             // 1428.05
-            expected_price: Some(Decimal::new(1428, 0)), // 1428 → 1428.00
-            charges: Some(Decimal::new(17_995, 3)),      // 17.995 → 18.00
-        })
-        .unwrap();
-    store.shutdown().unwrap();
-
-    let exact = "SELECT count() FROM fills WHERE trade_id = 'zz-trade-1' \
-                 AND price = 1428.05m AND expected_price = 1428.00m AND charges = 18.00m";
-    assert_eq!(wait_for_count(&mut q, exact, 1), 1);
-
-    cleanup(&mut q, &["fills"]);
+    cleanup(&mut q);
 }
 
 /// Store-and-forward: rows written while QuestDB is unreachable are kept on
@@ -171,7 +130,7 @@ fn rows_survive_an_outage_on_disk() {
     let sid = 990_000_003;
 
     let mut q = QueryClient::connect(&config("unused")).unwrap();
-    cleanup(&mut q, &["bars_1m"]);
+    cleanup(&mut q);
 
     // 1. QuestDB "down": point at a port where nothing listens.
     let offline = StoreConfig {
@@ -208,7 +167,7 @@ fn rows_survive_an_outage_on_disk() {
     let count_sql = format!("SELECT count() FROM bars_1m WHERE security_id = {sid}");
     assert_eq!(wait_for_count(&mut q, &count_sql, 50), 50);
 
-    cleanup(&mut q, &["bars_1m"]);
+    cleanup(&mut q);
     let _ = std::fs::remove_dir_all(&sf_dir);
 }
 
@@ -222,255 +181,36 @@ fn dir_size(p: &std::path::Path) -> u64 {
     }
 }
 
-/// Tables with a TTL in schema.sql.
-const TTL_TABLES: &[&str] = &["ticks", "indicators_live", "system_events"];
-
-const ALL_TABLES: &[&str] = &[
-    "instruments",
-    "bars_1m",
-    "bars_daily",
-    "ticks",
-    "indicators_1m",
-    "indicators_live",
-    "runs",
-    "signals",
-    "orders",
-    "fills",
-    "positions",
-    "pnl_daily",
-    "system_events",
-];
-
-/// One row of every type, so any drift between the Rust rows and the real
-/// tables shows up as a server error here instead of in production.
+/// A daily bar goes to `bars_daily`, so drift between the Rust row and
+/// that table shows up as a server error here.
 #[test]
 #[ignore = "needs a running QuestDB with the schema applied"]
-fn every_record_type_is_accepted() {
-    let cfg = config("test_all");
+fn daily_bars_are_accepted() {
+    let cfg = config("test_daily");
     let mut q = QueryClient::connect(&cfg).unwrap();
-    cleanup(&mut q, ALL_TABLES);
-
-    let ts = day_start();
-    let t = |s: &str| -> store::rows::Text { s.into() };
-    let d = |v: i64| Decimal::new(v, 2);
+    cleanup(&mut q);
     let sid = 990_000_004;
-    let records: Vec<Record> = vec![
-        InstrumentRow {
-            ts,
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            series: Some(t("EQ")),
-            isin: Some(t("INE000000000")),
-            name: Some(t("Test Ltd")),
-            tick_size: 0.05,
-            lot_size: 1,
-            upper_circuit: Some(110.0),
-            lower_circuit: Some(90.0),
-            asm_gsm: false,
-            mtf_leverage: Some(4.5),
-        }
-        .into(),
-        Record::Bar1m(bar(sid, 0, 100.0)),
-        Record::BarDaily(bar(sid, 0, 100.0)),
-        Tick {
-            ts,
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            ltp: 100.05,
-            ltq: Some(5),
-            ltt: Some(ts),
-            volume: Some(1000),
-            atp: Some(100.01),
-            bid: Some(100.0),
-            ask: Some(100.1),
-            bid_qty: Some(10),
-            ask_qty: Some(20),
-            total_buy_qty: Some(500),
-            total_sell_qty: None,
-            depth: Some(
-                [DepthLevel {
-                    bid_px: 100.0,
-                    bid_qty: 10,
-                    bid_orders: 2,
-                    ask_px: 100.1,
-                    ask_qty: 20,
-                    ask_orders: 3,
-                }; 5],
-            ),
-        }
-        .into(),
-        Record::Indicator1m(IndicatorRow {
-            ts,
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            indicator: t("ema(20)"),
-            value: Some(100.02),
-        }),
-        Record::IndicatorLive(IndicatorRow {
-            ts,
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            indicator: t("ema(20)"),
-            value: None,
-        }),
-        RunRow {
-            ts,
-            run_id: t("zz-run"),
-            mode: Mode::Backtest,
-            strategy: t("orb"),
-            broker: t("sim"),
-            git_sha: None,
-            params: Some(t(r#"{"or_minutes":15}"#)),
-            notes: None,
-        }
-        .into(),
-        SignalRow {
-            ts,
-            run_id: t("zz-run"),
-            mode: Mode::Backtest,
-            strategy: t("orb"),
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            side: t("BUY"),
-            entry: Some(d(10_005)),
-            stop: Some(d(9_900)),
-            target: Some(d(10_300)),
-            qty: 10,
-            decision: t("ACCEPTED"),
-            reason: None,
-        }
-        .into(),
-        OrderEvent {
-            ts,
-            run_id: t("zz-run"),
-            mode: Mode::Backtest,
-            strategy: t("orb"),
-            correlation_id: t("zz-c1"),
-            order_id: Some(t("1")),
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            side: t("BUY"),
-            product: t("INTRADAY"),
-            order_type: t("LIMIT"),
-            qty: 10,
-            price: Some(d(10_005)),
-            trigger_price: None,
-            status: t("TRADED"),
-            filled_qty: 10,
-            avg_price: Some(d(10_005)),
-            reason: None,
-        }
-        .into(),
-        FillRow {
-            ts,
-            run_id: t("zz-run"),
-            mode: Mode::Backtest,
-            strategy: t("orb"),
-            correlation_id: t("zz-c1"),
-            order_id: t("1"),
-            trade_id: t("zz-t1"),
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            side: t("BUY"),
-            qty: 10,
-            price: d(10_005),
-            expected_price: Some(d(10_000)),
-            charges: Some(d(1_850)),
-        }
-        .into(),
-        PositionRow {
-            ts,
-            run_id: t("zz-run"),
-            mode: Mode::Backtest,
-            strategy: t("orb"),
-            segment: t("NSE_EQ"),
-            security_id: sid,
-            symbol: t("ZZTEST"),
-            net_qty: 10,
-            avg_price: d(10_005),
-            ltp: Some(100.2),
-            realized_pnl: d(0),
-            unrealized_pnl: d(150),
-        }
-        .into(),
-        PnlDailyRow {
-            ts,
-            run_id: t("zz-run"),
-            mode: Mode::Backtest,
-            strategy: t("orb"),
-            trades: 1,
-            wins: 1,
-            losses: 0,
-            gross_pnl: d(15_000),
-            charges: d(1_850),
-            net_pnl: d(13_150),
-            max_drawdown: d(0),
-            turnover: d(200_100),
-        }
-        .into(),
-        SystemEvent {
-            ts,
-            run_id: t("zz-run"),
-            mode: Mode::Backtest,
-            level: Level::Info,
-            component: t("test"),
-            event: t("started"),
-            message: t("hello"),
-        }
-        .into(),
-    ];
-    assert_eq!(records.len(), ALL_TABLES.len());
-
     let store = Store::start(cfg).unwrap();
-    for r in records {
-        store.write(r).unwrap();
-    }
+    store.write(Record::BarDaily(bar(sid, 0, 100.0))).unwrap();
     store.flush().unwrap();
     let stats = store.stats();
     store.shutdown().unwrap();
     assert_eq!(stats.server_errors, 0);
-    assert_eq!(stats.sender_resets, 0);
     assert_eq!(stats.rejected_invalid, 0);
-
-    for table in ALL_TABLES {
-        // A table with a TTL drops 1990 rows at once when it also holds
-        // recent data (e.g. after a live session). Acceptance by the server
-        // is still checked above.
-        if TTL_TABLES.contains(table) {
-            let recent = q
-                .scalar_i64(&format!(
-                    "SELECT count() FROM {table} WHERE ts > '1990-06-01'"
-                ))
-                .unwrap();
-            if recent > 0 {
-                eprintln!(
-                    "{table}: holds recent data, so its TTL removes the test row; not counted"
-                );
-                continue;
-            }
-        }
-        let sql = format!("SELECT count() FROM {table} WHERE ts = '1990-01-02T03:45:00.000000Z'");
-        assert_eq!(wait_for_count(&mut q, &sql, 1), 1, "row missing in {table}");
-    }
-    cleanup(&mut q, ALL_TABLES);
+    let sql = format!("SELECT count() FROM bars_daily WHERE security_id = {sid}");
+    assert_eq!(wait_for_count(&mut q, &sql, 1), 1);
+    cleanup(&mut q);
 }
 
-/// Renames `system_events.message` for the duration of a test and always
-/// renames it back, even if the test fails.
+/// Renames `bars_1m.source` for the duration of a test and always renames
+/// it back, even if the test fails.
 struct RenamedColumn<'a> {
     q: &'a mut QueryClient,
 }
 
 impl<'a> RenamedColumn<'a> {
     fn new(q: &'a mut QueryClient) -> Self {
-        q.execute("ALTER TABLE system_events RENAME COLUMN message TO zz_message_tmp")
+        q.execute("ALTER TABLE bars_1m RENAME COLUMN source TO zz_source_tmp")
             .unwrap();
         Self { q }
     }
@@ -479,8 +219,8 @@ impl<'a> RenamedColumn<'a> {
 impl Drop for RenamedColumn<'_> {
     fn drop(&mut self) {
         self.q
-            .execute("ALTER TABLE system_events RENAME COLUMN zz_message_tmp TO message")
-            .expect("restore system_events.message");
+            .execute("ALTER TABLE bars_1m RENAME COLUMN zz_source_tmp TO source")
+            .expect("restore bars_1m.source");
     }
 }
 
@@ -499,25 +239,17 @@ fn recovers_from_a_rejected_batch() {
         ..config("test_poison")
     };
     let mut q = QueryClient::connect(&cfg).unwrap();
-    cleanup(&mut q, &["system_events"]);
-    let event = |msg: &str| SystemEvent {
-        ts: day_start(),
-        run_id: "zz-poison".into(),
-        mode: Mode::Backtest,
-        level: Level::Warn,
-        component: "test".into(),
-        event: msg.into(),
-        message: msg.into(),
-    };
+    cleanup(&mut q);
+    let (rejected, accepted) = (990_000_005, 990_000_006);
 
     let store = Store::start(cfg).unwrap();
     {
         let _renamed = RenamedColumn::new(&mut q);
-        store.write(event("rejected")).unwrap();
+        store.write(Record::Bar1m(bar(rejected, 0, 10.0))).unwrap();
         assert!(store.flush().is_err(), "the batch must be rejected");
     }
     // Schema restored: a fresh sender must take over.
-    store.write(event("accepted")).unwrap();
+    store.write(Record::Bar1m(bar(accepted, 0, 10.0))).unwrap();
     store.flush().unwrap();
     let stats = store.stats();
     store.shutdown().unwrap();
@@ -535,11 +267,11 @@ fn recovers_from_a_rejected_batch() {
         "rejected queue must be kept in {}",
         quarantine.display()
     );
-    let ok = "SELECT count() FROM system_events WHERE run_id = 'zz-poison' AND event = 'accepted'";
-    assert_eq!(wait_for_count(&mut q, ok, 1), 1);
-    let bad = "SELECT count() FROM system_events WHERE run_id = 'zz-poison' AND event = 'rejected'";
-    assert_eq!(q.scalar_i64(bad).unwrap(), 0);
+    let ok = format!("SELECT count() FROM bars_1m WHERE security_id = {accepted}");
+    assert_eq!(wait_for_count(&mut q, &ok, 1), 1);
+    let bad = format!("SELECT count() FROM bars_1m WHERE security_id = {rejected}");
+    assert_eq!(q.scalar_i64(&bad).unwrap(), 0);
 
-    cleanup(&mut q, &["system_events"]);
+    cleanup(&mut q);
     let _ = std::fs::remove_dir_all(&sf_dir);
 }

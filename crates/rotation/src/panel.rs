@@ -228,28 +228,9 @@ impl Panel {
     /// of `exit`. If the stock's history ends or breaks first, it is sold at
     /// its last close before that.
     pub fn hold_return(&self, s: usize, entry: usize, exit: usize) -> Option<f64> {
-        self.hold_with_stops(s, entry, exit, None, None)
-            .map(|x| x.0)
-    }
-
-    /// Like [`hold_return`](Self::hold_return), with stops checked on each
-    /// close before `exit`: a close at or below `stop` × entry price (fixed
-    /// stop, e.g. 0.85) or `trailing` × the highest close since entry
-    /// (trailing stop) sells at the next open. Returns the return and
-    /// whether a stop fired; after a stop the money waits in cash.
-    pub fn hold_with_stops(
-        &self,
-        s: usize,
-        entry: usize,
-        exit: usize,
-        stop: Option<f64>,
-        trailing: Option<f64>,
-    ) -> Option<(f64, bool)> {
         let buy = self.get(s, entry)?.open;
         let id = self.stretch(s, entry)?;
         let mut last = None;
-        let mut peak = buy;
-        let mut stop_hit = false;
         for d in entry..=exit {
             if self.stretch(s, d) != Some(id) {
                 break;
@@ -257,18 +238,13 @@ impl Panel {
             let Some(x) = self.get(s, d) else {
                 continue;
             };
-            if d == exit || stop_hit {
-                // Sold at this open: the planned exit, or the day after a stop.
+            if d == exit {
                 last = Some(x.open);
                 break;
             }
             last = Some(x.close);
-            peak = peak.max(x.close);
-            let fixed = stop.is_some_and(|f| x.close <= buy * f);
-            let trail = trailing.is_some_and(|f| x.close <= peak * f);
-            stop_hit = fixed || trail;
         }
-        Some((last? / buy - 1.0, stop_hit))
+        Some(last? / buy - 1.0)
     }
 }
 
@@ -333,32 +309,9 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn stops_sell_at_the_next_open() {
-        // Bought at 100; closes 95, 84 (below an 85% stop), then opens at 83.
-        let p = panel(&[&[
-            Some(100.0),
-            Some(95.0),
-            Some(84.0),
-            Some(83.0),
-            Some(90.0),
-            Some(120.0),
-        ]]);
-        let (r, hit) = p.hold_with_stops(0, 0, 5, Some(0.85), None).unwrap();
-        assert!(hit);
-        assert!((r - (83.0 / 100.0 - 1.0)).abs() < 1e-9);
-        // Without a stop it rides to the exit open.
-        let (r, hit) = p.hold_with_stops(0, 0, 5, None, None).unwrap();
-        assert!(!hit && (r - 0.2).abs() < 1e-9);
-        // Trailing 80% of the peak: peak 130, close 100 is below 104.
-        let p = panel(&[&[
-            Some(100.0),
-            Some(130.0),
-            Some(100.0),
-            Some(101.0),
-            Some(140.0),
-        ]]);
-        let (r, hit) = p.hold_with_stops(0, 0, 4, None, Some(0.8)).unwrap();
-        assert!(hit && (r - 0.01).abs() < 1e-9);
+    fn hold_return_sells_at_the_exit_open() {
+        let p = panel(&[&[Some(100.0), Some(95.0), Some(84.0), Some(120.0)]]);
+        assert!((p.hold_return(0, 0, 3).unwrap() - 0.2).abs() < 1e-9);
     }
 
     #[test]

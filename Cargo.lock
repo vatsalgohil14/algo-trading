@@ -1656,7 +1656,6 @@ dependencies = [
  "questdb-confstr",
  "rand 0.9.5",
  "ring",
- "rust_decimal",
  "rustls",
  "rustls-pki-types",
  "ryu",
@@ -2239,7 +2238,6 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "questdb-rs",
- "rust_decimal",
  "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",

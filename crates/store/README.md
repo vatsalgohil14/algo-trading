@@ -1,6 +1,6 @@
 # store
 
-Storage for the trading system on QuestDB, using **QWP** (QuestDB Wire
+Writes candles into QuestDB, using **QWP** (QuestDB Wire
 Protocol, new in QuestDB 10): binary, columnar, compressed, over WebSocket on
 the normal HTTP port 9000. It replaces ILP for ingestion and the Postgres wire
 protocol for queries. Client: `questdb-rs` 7.2.
@@ -8,21 +8,21 @@ protocol for queries. Client: `questdb-rs` 7.2.
 ## Writing
 
 ```rust
-use store::{Store, StoreConfig, Mode};
-use store::rows::SystemEvent;
+use store::{Record, Store, StoreConfig};
+use store::rows::Bar;
 
-// Live/paper: unsent rows are kept on disk until QuestDB has them.
-let store = Store::start(StoreConfig::durable("127.0.0.1:9000", "data/sf", "trader"))?;
+// Durable: unsent rows are kept on disk until QuestDB has them.
+let store = Store::start(StoreConfig::durable("127.0.0.1:9000", "data/sf", "loader"))?;
 
-// Never blocks; drops (and counts) the row only if the queue is full.
-store.try_write(SystemEvent { /* ... */ })?;
+// Waits for queue space; `try_write` never blocks and drops (and counts)
+// the row if the queue is full.
+store.write(Record::BarDaily(Bar { /* ... */ }))?;
 
 store.flush()?;      // optional: wait until QuestDB has everything so far
 store.shutdown()?;   // flush, wait for acks, stop
 ```
 
-- **`try_write`** for the trading path (never blocks), **`write`** for backfills
-  (waits for queue space).
+- **`write`** waits for queue space (downloads); **`try_write`** never blocks.
 - A background thread batches rows and sends them every 100 ms or 10,000 rows.
 - **Store-and-forward**: with `StoreConfig::durable`, rows are written to
   `sf_dir` first, so they survive a QuestDB outage *and* a crash of this
@@ -31,23 +31,9 @@ store.shutdown()?;   // flush, wait for acks, stop
 - **`stats()`** exposes counters; anything other than `queued`, `flushed_rows`
   and `flushes` being non-zero should raise an alert.
 
-## Typed rows
+## Rows
 
-`store::rows` has one struct per table in `deploy/questdb/schema.sql`: `Bar`
-(1m and daily), `Tick`, `InstrumentRow`, `RunRow`, `SignalRow`, `OrderEvent`,
-`FillRow`, `PositionRow`, `PnlDailyRow`, `SystemEvent`. Money is
-`rust_decimal::Decimal`, written with exactly 2 decimal places (rounded half
-away from zero) to match the `DECIMAL(p, 2)` columns.
-
-## Reading
-
-```rust
-use store::query::{QueryClient, BarTable};
-
-let mut q = QueryClient::connect(&StoreConfig::default())?;
-let bars = q.bars(BarTable::OneMinute, 2885, from, to)?; // RELIANCE, oldest first
-let n = q.scalar_i64("SELECT count() FROM bars_1m")?;
-```
+`store::rows::Bar` is one candle; `Record::BarDaily` writes it to `bars_daily` and `Record::Bar1m` to `bars_1m`, the two tables in `deploy/questdb/schema.sql`. `dhan-daily` is the only writer.
 
 ## Schema safety
 
@@ -73,8 +59,4 @@ scripts/questdb.sh start && scripts/questdb.sh init
 cargo test -p store -- --ignored --test-threads=1          # live tests
 ```
 
-The live tests cover: round trip and dedup of 375 bars, exact decimals, one row
-of every type accepted by the real schema, store-and-forward across an outage,
-and recovery from a rejected batch. They write only to 1990-01-02 (with
-security IDs above 990,000,000) and drop that partition afterwards, so real
-data is never touched.
+The live tests cover: round trip and dedup of 375 bars, a daily bar accepted by `bars_daily`, store-and-forward across an outage, and recovery from a rejected batch. They write only to 1990 (security IDs above 990,000,000) and drop those partitions afterwards, so real data is never touched.

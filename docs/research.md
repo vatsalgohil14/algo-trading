@@ -1,7 +1,7 @@
 # Research
 
 !!! note "Tools removed"
-    The intraday engine and the one-off research tools (`event-study`, `factor-study`, `statarb-study`, `daily-study`, `pattern-study`) were deleted on 2026-11-21 once their results were recorded here. Commands for them below are kept as a record only. `rotation-study` remains.: testing an idea before building it
+    The intraday engine and the one-off research tools (`event-study`, `factor-study`, `statarb-study`, `daily-study`, `pattern-study`) were deleted on 2026-11-21 once their results were recorded here. Commands for them below are kept as a record only. On 2026-11-28 `rotation-study` was also cut down to the two strategies that are kept (`momentum_low_vol` and `momentum`), so the other rankings below (residual momentum, momentum consistency, low volatility and so on), the sleeves and the stop-loss exits are a record too.: testing an idea before building it
 
 A full strategy takes time to write and a backtest mixes many decisions together. Before that, test the idea itself: when the condition happens, does the price then move the way the idea expects, by more than chance and more than costs?
 

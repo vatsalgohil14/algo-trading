@@ -22,10 +22,10 @@ let progress = account.advance(&panel, strategy.as_ref())?; // every day since t
 |---|---|
 | `Panel` | Daily bars of many stocks on one calendar. A one-day jump beyond ±50%, or more than 10 missing days, restarts a stock's history, so no signal or return spans it |
 | `universe` | The `size` stocks with the highest median traded value over the last 60 days, on that day |
-| `Ranker` | Scores a stock on a day: `Momentum`, `MomentumLowVol`, or any function via `FnRanker` |
+| `Ranker` | Scores a stock on a day: `Momentum` (12-1 by default, any lookback/skip) or `MomentumLowVol` |
 | `select` | Top scores, skipping stocks too thin for the capital (2% of daily traded value); with `exit_rank`, held stocks are kept while they rank within it |
 | `Schedule` | `MonthStart` (first trading day of each month, the default) or `EveryDays(n)` |
-| `backtest` | Rebalance on the schedule, buy at the next open, costs on the replaced part; optional daily `stop_loss` / `trailing_stop` (tested worse, off by default) |
+| `backtest` | Rebalance on the schedule, buy at the next open, costs on the replaced part |
 | `plan` / `trades` | Target holdings in whole shares, and the orders from current holdings |
 | `paper::Account` | Day-by-day paper trading: fills at the open with costs, equal weights with a 25% band, split/bonus rescaling, retries for stocks not trading. Plain data, saved as JSON between runs |
 

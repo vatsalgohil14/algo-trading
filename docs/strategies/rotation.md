@@ -58,7 +58,7 @@ The full numbers are on the [Research](../research.md#monthly-rotation-on-every-
 
 There is no stop-loss and no profit target. A stock is held as long as it keeps ranking near the top, which can be one month or many, and is sold at the next open after a rebalance where it ranks too low.
 
-Tested over 2010–2026, top 30, first trading day of each month, after costs (`rotation-study --sections exits`):
+Tested over 2010–2026, top 30, first trading day of each month, after costs:
 
 | Sold when | Momentum + low vol | Worst fall | Turns a year | Momentum 12-1 | Worst fall |
 |---|---|---|---|---|---|
@@ -71,6 +71,8 @@ Tested over 2010–2026, top 30, first trading day of each month, after costs (`
 | A close 20% below its peak (trailing stop) | +24.2% | −30% | 4.8× | +25.1% | −47% |
 
 With the older every-21-trading-days schedule the picture was the same: stops lost 2–5 points a year, and a 60 buffer kept the return with half the trading. Buffers of 45 and 60 are within noise of each other. 60 is used because fewer sales mean fewer short-term tax events.
+
+The stop-loss rows were tested with code that has since been removed, because stops lost in every test. `rotation-study --sections exits` now compares only the rank buffers.
 
 **Why stops hurt here:**
 - Momentum stocks are volatile, so stops fire on ordinary dips. The money then waits in cash while the stock often recovers. Stops sold near the lows, which made the worst fall *deeper*, not shallower.

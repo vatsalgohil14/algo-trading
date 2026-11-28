@@ -115,28 +115,6 @@ impl Ranker for MomentumLowVol {
     }
 }
 
-/// A ranking from a plain function, for research.
-pub struct FnRanker {
-    pub name: &'static str,
-    pub score: fn(&Panel, usize, usize) -> Option<f64>,
-}
-
-impl std::fmt::Debug for FnRanker {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name)
-    }
-}
-
-impl Ranker for FnRanker {
-    fn name(&self) -> &str {
-        self.name
-    }
-
-    fn score(&self, p: &Panel, s: usize, d: usize) -> Option<f64> {
-        (self.score)(p, s, d)
-    }
-}
-
 /// Strategies that can be built by name.
 pub const STRATEGIES: [&str; 2] = ["momentum", "momentum_low_vol"];
 

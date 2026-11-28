@@ -93,13 +93,6 @@ pub struct RotationConfig {
     /// top `exit_rank`, not only the top `hold`. Cuts selling on small rank
     /// changes. `None` = sell as soon as it leaves the top `hold`.
     pub exit_rank: Option<usize>,
-    /// Fixed stop: sell at the next open after a close below this fraction
-    /// of the entry price (0.8 = 20% down). Checked daily; the money waits
-    /// in cash until the next rebalance.
-    pub stop_loss: Option<f64>,
-    /// Trailing stop: sell after a close below this fraction of the highest
-    /// close since entry.
-    pub trailing_stop: Option<f64>,
 }
 
 impl Default for RotationConfig {
@@ -111,8 +104,6 @@ impl Default for RotationConfig {
             cost_bps: 40.0,
             max_daily_value_fraction: 0.02,
             exit_rank: None,
-            stop_loss: None,
-            trailing_stop: None,
         }
     }
 }
@@ -139,11 +130,7 @@ impl RotationConfig {
             && u.min_price.is_finite()
             && self.max_daily_value_fraction > 0.0
             && self.max_daily_value_fraction <= 1.0
-            && self.exit_rank.is_none_or(|r| r >= self.hold)
-            && [self.stop_loss, self.trailing_stop]
-                .iter()
-                .flatten()
-                .all(|f| f.is_finite() && *f > 0.0 && *f < 1.0);
+            && self.exit_rank.is_none_or(|r| r >= self.hold);
         if ok {
             Ok(())
         } else {
@@ -283,7 +270,7 @@ pub fn backtest(
         }
     }
     let mut periods = Vec::new();
-    // Held into the next rebalance: this period's picks minus stopped-out.
+    // Held into the next rebalance: this period's picks that had prices.
     let mut prev: Vec<usize> = Vec::new();
     for pair in days.windows(2) {
         let &[d, next] = pair else { continue };
@@ -295,13 +282,9 @@ pub fn backtest(
             Some(r) => select(p, r, c, d, capital, &prev),
             None => universe(p, d, &c.universe),
         };
-        let held: Vec<(usize, f64, bool)> = picks
+        let held: Vec<(usize, f64)> = picks
             .iter()
-            .filter_map(|&s| {
-                let (r, stopped) =
-                    p.hold_with_stops(s, entry, exit, c.stop_loss, c.trailing_stop)?;
-                Some((s, r, stopped))
-            })
+            .filter_map(|&s| Some((s, p.hold_return(s, entry, exit)?)))
             .collect();
         let gross = if held.is_empty() {
             0.0
@@ -322,7 +305,7 @@ pub fn backtest(
             turnover,
             holdings: picks.clone(),
         });
-        prev = held.iter().filter(|x| !x.2).map(|x| x.0).collect();
+        prev = held.iter().map(|x| x.0).collect();
     }
     Ok(Backtest {
         periods,
@@ -593,14 +576,6 @@ mod tests {
         assert!(
             RotationConfig {
                 exit_rank: Some(2),
-                ..config(3)
-            }
-            .validate()
-            .is_err()
-        );
-        assert!(
-            RotationConfig {
-                stop_loss: Some(1.2),
                 ..config(3)
             }
             .validate()

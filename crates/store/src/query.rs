@@ -1,31 +1,10 @@
-//! Reads over QWP. Results arrive as compressed column batches, which is much
-//! faster than row-by-row protocols when loading years of bars for a
-//! backtest.
+//! Small queries over QWP: the schema check before writing, and the live
+//! tests. (Tools read bars through QuestDB's CSV export instead.)
 
-use std::sync::Arc;
-
-use chrono::{DateTime, Utc};
-use questdb::egress::Bind;
 use questdb::egress::column::ColumnView;
 use questdb::egress::reader::Reader;
 
-use crate::rows::{Bar, Text};
 use crate::{Result, StoreConfig, StoreError};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BarTable {
-    OneMinute,
-    Daily,
-}
-
-impl BarTable {
-    const fn name(self) -> &'static str {
-        match self {
-            BarTable::OneMinute => "bars_1m",
-            BarTable::Daily => "bars_daily",
-        }
-    }
-}
 
 /// A QWP query connection. Not thread-safe; open one per thread.
 pub struct QueryClient {
@@ -38,24 +17,6 @@ impl std::fmt::Debug for QueryClient {
     }
 }
 
-/// Reuses the previous `Arc<str>` while consecutive rows repeat a value, so
-/// a million bars of one stock share one allocation per text column.
-#[derive(Default)]
-struct Interner(Option<Text>);
-
-impl Interner {
-    fn get(&mut self, s: &str) -> Text {
-        match &self.0 {
-            Some(prev) if &**prev == s => Arc::clone(prev),
-            _ => {
-                let t: Text = s.into();
-                self.0 = Some(Arc::clone(&t));
-                t
-            }
-        }
-    }
-}
-
 fn shape(msg: impl Into<String>) -> StoreError {
     StoreError::Shape(msg.into())
 }
@@ -65,90 +26,6 @@ impl QueryClient {
         Ok(Self {
             reader: Reader::from_conf(config.reader_conf())?,
         })
-    }
-
-    /// Bars for one instrument in `[from, to)`, oldest first.
-    pub fn bars(
-        &mut self,
-        table: BarTable,
-        security_id: i32,
-        from: DateTime<Utc>,
-        to: DateTime<Utc>,
-    ) -> Result<Vec<Bar>> {
-        let sql = format!(
-            "SELECT ts, segment, security_id, symbol, open, high, low, close, volume, oi, source \
-             FROM {} WHERE security_id = $1 AND ts >= $2 AND ts < $3 ORDER BY ts",
-            table.name()
-        );
-        let mut cursor = self
-            .reader
-            .prepare(sql)
-            .bind(Bind::I32(security_id))
-            .bind(Bind::TimestampMicros(from.timestamp_micros()))
-            .bind(Bind::TimestampMicros(to.timestamp_micros()))
-            .execute()?;
-
-        let (mut seg_i, mut sym_i, mut src_i) = (
-            Interner::default(),
-            Interner::default(),
-            Interner::default(),
-        );
-        let mut out = Vec::new();
-        while let Some(batch) = cursor.next_batch()? {
-            let n = batch.row_count();
-            let (
-                ColumnView::Timestamp(ts),
-                ColumnView::Symbol(seg),
-                ColumnView::Int(sid),
-                ColumnView::Symbol(sym),
-                ColumnView::Double(open),
-                ColumnView::Double(high),
-                ColumnView::Double(low),
-                ColumnView::Double(close),
-                ColumnView::Long(volume),
-                ColumnView::Long(oi),
-                ColumnView::Symbol(src),
-            ) = (
-                batch.column(0)?,
-                batch.column(1)?,
-                batch.column(2)?,
-                batch.column(3)?,
-                batch.column(4)?,
-                batch.column(5)?,
-                batch.column(6)?,
-                batch.column(7)?,
-                batch.column(8)?,
-                batch.column(9)?,
-                batch.column(10)?,
-            )
-            else {
-                return Err(shape("bar columns have unexpected types; check schema.sql"));
-            };
-            out.reserve(n);
-            for r in 0..n {
-                let ts_us = ts.value(r);
-                let ts = DateTime::from_timestamp_micros(ts_us)
-                    .ok_or_else(|| shape(format!("timestamp {ts_us} out of range")))?;
-                out.push(Bar {
-                    ts,
-                    segment: seg_i.get(seg.resolve(r).unwrap_or_default()),
-                    security_id: sid.value(r),
-                    symbol: sym_i.get(sym.resolve(r).unwrap_or_default()),
-                    open: open.value(r),
-                    high: high.value(r),
-                    low: low.value(r),
-                    close: close.value(r),
-                    volume: if volume.is_null(r) {
-                        0
-                    } else {
-                        volume.value(r)
-                    },
-                    oi: (!oi.is_null(r)).then(|| oi.value(r)),
-                    source: src_i.get(src.resolve(r).unwrap_or_default()),
-                });
-            }
-        }
-        Ok(out)
     }
 
     /// Runs a query returning two text columns, e.g. `table_columns()`.

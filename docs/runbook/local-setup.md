@@ -48,25 +48,14 @@ QuestDB does not start automatically after a reboot; run `scripts/questdb.sh sta
 
 - Statements must be idempotent and end with `;`.
 - Never edit a table that already holds data; append an `ALTER TABLE` instead.
-- Market data uses `DOUBLE`; account money (orders, fills, P&L) uses `DECIMAL`.
-- `mode` (backtest / paper / live) lets all three share tables.
 - DEDUP keys make re-loading the same data safe.
 
 | Table | Purpose | Partition | Retention |
 |---|---|---|---|
-| `instruments` | daily snapshot of tradable instruments | month | forever |
-| `bars_1m` | 1-minute candles (history + live) | day | forever |
-| `bars_daily` | daily candles | year | forever |
-| `ticks` | raw live ticks with 5-level depth, for replay and analysis | day | 60 days |
-| `indicators_1m` | closed indicator values per finished candle; joins `bars_1m` | day | forever |
-| `indicators_live` | live indicator values on every tick; joins `ticks` | day | 60 days |
-| `runs` | each backtest/paper/live run and its parameters | year | forever |
-| `signals` | every signal, incl. risk rejections and reasons | day | forever |
-| `orders` | order event log (one row per status change) | day | forever |
-| `fills` | executions, expected vs actual price, charges | day | forever |
-| `positions` | position snapshots and reconciliation | day | forever |
-| `pnl_daily` | daily P&L per strategy, net of costs | year | forever |
-| `system_events` | connects, halts, kill switch, errors | day | 180 days |
+| `bars_daily` | Daily candles for every NSE stock and a few ETFs (`dhan-daily`) | year | forever |
+| `bars_1m` | 1-minute candles for the Nifty 50 from Dec 2021, kept from the intraday research; nothing writes here now | day | forever |
+
+The intraday tables (ticks, orders, fills, signals, positions and others) were dropped on 2026-11-28 with the code that used them.
 
 ## Reinstalling from scratch
 

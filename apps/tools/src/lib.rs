@@ -22,6 +22,15 @@ pub mod daily {
     /// Company shares (source `dhan_daily`, no ETFs) from `from` to `to`
     /// (inclusive; `None` = all), as a [`Panel`].
     pub async fn stocks(qdb: &str, from: NaiveDate, to: Option<NaiveDate>) -> Result<Panel, Error> {
+        Ok(Panel::from_csv(&stocks_csv(qdb, from, to).await?)?)
+    }
+
+    /// The same as CSV (`date,symbol,open,high,low,close,value`), to cache.
+    pub async fn stocks_csv(
+        qdb: &str,
+        from: NaiveDate,
+        to: Option<NaiveDate>,
+    ) -> Result<String, Error> {
         // ts is midnight IST (18:30 UTC the day before): adding 5h30 gives
         // the trading date, and `< to + 1 day` includes `to`.
         let to = to
@@ -31,7 +40,7 @@ pub mod daily {
             "select to_str(dateadd('m', 330, ts), 'yyyy-MM-dd') d, symbol, open, high, low, close, \
              close * volume v from bars_daily where source = 'dhan_daily' and ts >= '{from}'{to} order by ts"
         );
-        Ok(Panel::from_csv(&export(qdb, &sql).await?)?)
+        export(qdb, &sql).await
     }
 
     /// Daily closes of one ETF or fund (source `dhan_daily_fund`), e.g.

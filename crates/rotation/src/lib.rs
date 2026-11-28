@@ -29,8 +29,7 @@ pub use rotation::{
     backtest, excess, plan, ranking, select, trades, universe,
 };
 pub use strategy::{
-    FnRanker, Momentum, MomentumConfig, MomentumLowVol, MomentumLowVolConfig, Ranker, STRATEGIES,
-    build,
+    Momentum, MomentumConfig, MomentumLowVol, MomentumLowVolConfig, Ranker, STRATEGIES, build,
 };
 
 #[derive(Debug, thiserror::Error)]
